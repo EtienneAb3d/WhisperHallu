@@ -1,5 +1,5 @@
 # WhisperHallu
-Experimental code: sound file preprocessing to optimize Whisper transcription without hallucinated texts
+Experimental code: sound file preprocessing to optimize Whisper transcriptions without hallucinated texts
 
 See this discussion: https://github.com/openai/whisper/discussions/679
 
