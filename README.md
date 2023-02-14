@@ -6,7 +6,9 @@ See this discussion: https://github.com/openai/whisper/discussions/679
 # Algo
 - remove silences, and normalize loudness.
 - remove noise parts.
-- add voice markers, and transcribe. If markers are present in output, transcription is OK.
+- add voice markers.
+- apply speech compressor.
+- try to transcribe. If markers are present in output, transcription is OK.
 - if not, try to invert markers. If markers are present in output, transcription is OK.
 - if not, try without markers.
 
