@@ -1,7 +1,7 @@
 # WhisperHallu
 Experimental code: sound file preprocessing to optimize Whisper transcription without hallucinated texts
 
-#Code
+# Code
 
 ```
 SAMPLING_RATE = 16000
