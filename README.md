@@ -25,6 +25,9 @@ import time
 import re
 import torch
 
+from threading import Lock, Thread
+lock = Lock()
+
 #This code is using FasterWhisper: https://github.com/guillaumekln/faster-whisper
 from faster_whisper import WhisperModel
 
