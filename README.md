@@ -1,13 +1,76 @@
 # WhisperHallu
 Experimental code: sound file preprocessing to optimize Whisper transcription without hallucinated texts
 
+See this discussion: https://github.com/openai/whisper/discussions/679
+
+# Algo
+- remove silences, and normalize loudness.
+- remove noise parts.
+- add voice markers, and transcribe. If markers are present in output, transcription is OK.
+- if not, try to invert markers. If markers are present in output, transcription is OK.
+- if not, try without markers.
+
+# Complement
+
+May be used to produce "accurate transcriptions" for https://github.com/EtienneAb3d/WhisperTimeSync
+
 # Code
 
 ```
 SAMPLING_RATE = 16000
 beam_size=2
+prompt="Whisper, Ok. A pertinent sentence for your purpose in your language. Ok, Whisper. Whisper, Ok. Ok, Whisper. Whisper, Ok. Please find here, an unlikely ordinary sentence. This is to avoid a repetition to be deleted. Ok, Whisper. "
 
-result = transcribeMARK(pathIn, dict(language="ja"), mode=1)
+result = transcribePrompt(pathIn, lng="en", prompt=prompt)
+
+def transcribePrompt(path: str,lng: str,prompt: str):
+    """Whisper transcribe."""
+    print("=====transcribePrompt",flush=True)
+    print("PATH="+path,flush=True)
+    print("LNG="+lng,flush=True)
+    opts = dict(language=lng,initial_prompt=prompt)
+    return transcribeOpts(path, opts)
+
+def transcribeOpts(path: str,opts: dict):
+    pathIn = path
+    
+    initTime = time.time()
+    
+    startTime = time.time()
+    try:
+        pathSILCUT = path+".SILCUT"+".wav"
+        aCmd = "ffmpeg -y -i "+pathIn+" -af \"silenceremove=start_periods=1:stop_periods=-1:start_threshold=-50dB:stop_threshold=-50dB:start_silence=0.2:stop_silence=0.2, loudnorm\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathSILCUT+" > "+pathSILCUT+".log 2>&1"
+        print("CMD: "+aCmd)
+        os.system(aCmd)
+        print("T=",(time.time()-startTime))
+        print("PATH="+pathSILCUT,flush=True)
+        pathIn = pathSILCUT
+    except:
+         print("Warning: can't filter blanks")
+    
+    startTime = time.time()
+    try:
+        pathVAD = pathIn+".VAD.wav"
+        wav = read_audio(pathIn, sampling_rate=SAMPLING_RATE)
+        speech_timestamps = get_speech_timestamps(wav, modelVAD, sampling_rate=SAMPLING_RATE)
+        save_audio(pathVAD,collect_chunks(speech_timestamps, wav), sampling_rate=SAMPLING_RATE)
+        print("T=",(time.time()-startTime))
+        print("PATH="+pathVAD,flush=True)
+        pathIn = pathVAD
+    except:
+         print("Warning: can't filter noises")
+    
+    result = transcribeMARK(pathIn, opts, mode=1)
+    
+    if len(result["text"]) <= 0:
+        result["text"] = "--"
+    
+    print("T=",(time.time()-startTime))
+    print("s/c=",(time.time()-startTime)/len(result["text"]))
+    print("c/s=",len(result["text"])/(time.time()-startTime))
+    print("TOT=",(time.time()-initTime))
+    
+    return result["text"]
 
 def transcribeMARK(path: str,opts: dict,mode = 1,aLast=None):
     pathIn = path
