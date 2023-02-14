@@ -14,7 +14,11 @@ See this discussion: https://github.com/openai/whisper/discussions/679
 
 # Complement
 
-May be used to produce "accurate transcriptions" for https://github.com/EtienneAb3d/WhisperTimeSync
+May be used to produce "accurate transcriptions" for WhisperTimeSync:<br/>
+https://github.com/EtienneAb3d/WhisperTimeSync
+
+May be tested using NeuroSpell Dictaphone:<br/>
+https://neurospell.com/
 
 # Code
 
