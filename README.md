@@ -17,11 +17,35 @@ May be used to produce "accurate transcriptions" for https://github.com/EtienneA
 # Code
 
 ```
-SAMPLING_RATE = 16000
+import sys
+import os
+import time
+import re
+import torch
+
+#This code is using FasterWhisper
+from faster_whisper import WhisperModel
+
+model_path = "whisper-medium-ct2/" #"whisper-medium-ct2/" or "whisper-large-ct2/"
 beam_size=2
+model = None
+
+SAMPLING_RATE = 16000
+
+#Need to be adapted for each language
+lng="en"
 prompt="Whisper, Ok. A pertinent sentence for your purpose in your language. Ok, Whisper. Whisper, Ok. Ok, Whisper. Whisper, Ok. Please find here, an unlikely ordinary sentence. This is to avoid a repetition to be deleted. Ok, Whisper. "
 
-result = transcribePrompt(pathIn, lng="en", prompt=prompt)
+loadModel("0")
+result = transcribePrompt("/your/path/to/sound/file", lng=lng, prompt=prompt)
+
+def loadModel(gpu: str):
+    print("LOADING: "+model_path+" GPU: "+gpu+" BS: "+str(beam_size))
+    global model
+    device="cuda" #cuda cpu
+    compute_type="float16"# float16 int8_float16 int8
+    model = WhisperModel(model_path, device=device,device_index=int(gpu), compute_type=compute_type)
+    print("LOADED")
 
 def transcribePrompt(path: str,lng: str,prompt: str):
     """Whisper transcribe."""
