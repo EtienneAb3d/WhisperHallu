@@ -25,7 +25,7 @@ import time
 import re
 import torch
 
-#This code is using FasterWhisper
+#This code is using FasterWhisper: https://github.com/guillaumekln/faster-whisper
 from faster_whisper import WhisperModel
 
 model_path = "whisper-medium-ct2/" #"whisper-medium-ct2/" or "whisper-large-ct2/"
