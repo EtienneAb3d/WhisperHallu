@@ -16,13 +16,6 @@ import traceback
 
 import torch
 
-#This code is using FasterWhisper: https://github.com/guillaumekln/faster-whisper
-from faster_whisper import WhisperModel
-
-from threading import Lock, Thread
-lock = Lock()
-
-SAMPLING_RATE = 16000
 torch.set_num_threads(1)
 modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                               model='silero_vad',
@@ -35,16 +28,42 @@ modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
  VADIterator,
  collect_chunks) = utils
 
-model_path = "whisper-medium-ct2/"#"whisper-medium-ct2/" "whisper-large-ct2/"
+try:
+    #Standard Whisper: https://github.com/openai/whisper
+    import whisper
+    print("Using standard Whisper")
+    isFaster = False
+    modelSize="medium"#"tiny"#"medium" #"large"
+except ImportError as e:
+    pass
+
+try:
+    #FasterWhisper: https://github.com/guillaumekln/faster-whisper
+    from faster_whisper import WhisperModel
+    print("Using Faster Whisper")
+    isFaster = True
+    modelPath = "whisper-medium-ct2/"#"whisper-medium-ct2/" "whisper-large-ct2/"
+except ImportError as e:
+    pass
+
 beam_size=2
 model = None
 
+SAMPLING_RATE = 16000
+
+from threading import Lock, Thread
+lock = Lock()
+
 def loadModel(gpu: str):
-    print("LOADING: "+model_path+" GPU: "+gpu+" BS: "+str(beam_size))
     global model
     device="cuda" #cuda cpu
-    compute_type="float16"# float16 int8_float16 int8
-    model = WhisperModel(model_path, device=device,device_index=int(gpu), compute_type=compute_type)
+    if isFaster:
+        print("LOADING: "+modelPath+" GPU: "+gpu+" BS: "+str(beam_size))
+        compute_type="float16"# float16 int8_float16 int8
+        model = WhisperModel(modelPath, device=device,device_index=int(gpu), compute_type=compute_type)
+    else:
+        print("LOADING: "+modelSize+" GPU:"+gpu+" BS: "+str(beam_size))
+        model = whisper.load_model(modelSize,device=torch.device("cuda:"+gpu)) #May be "cpu"
     print("LOADED")
 
 def transcribePrompt(path: str,lng: str,prompt: str):
@@ -84,15 +103,15 @@ def transcribeOpts(path: str,opts: dict):
     except:
          print("Warning: can't filter noises")
     
+    startTime = time.time()
     result = transcribeMARK(pathIn, opts, mode=1)
     
     if len(result["text"]) <= 0:
         result["text"] = "--"
     
-    print("T=",(time.time()-startTime))
-    print("s/c=",(time.time()-startTime)/len(result["text"]))
-    print("c/s=",len(result["text"])/(time.time()-startTime))
-    print("TOT=",(time.time()-initTime))
+    print("T=",(time.time()-initTime))
+    print("s/c=",(time.time()-initTime)/len(result["text"]))
+    print("c/s=",len(result["text"])/(time.time()-initTime))
     
     return result["text"]
 
@@ -147,11 +166,17 @@ def transcribeMARK(path: str,opts: dict,mode = 1,aLast=None):
         if beam_size > 1:
         	transcribe_options = dict(beam_size=beam_size,**opts)
         
-        segments, info = model.transcribe(pathIn,**transcribe_options)
-        result = {}
-        result["text"] = ""
-        for segment in segments:
-            result["text"] += segment.text
+        if isFaster:
+            segments, info = model.transcribe(pathIn,**transcribe_options)
+            result = {}
+            result["text"] = ""
+            for segment in segments:
+                result["text"] += segment.text
+        else:
+            transcribe_options = dict(task="transcribe", **opts)
+            result = model.transcribe(pathIn,**transcribe_options)
+        
+        print("T=",(time.time()-startTime))
         print("TRANS="+result["text"],flush=True)
     except Exception as e: 
     	print(e)
