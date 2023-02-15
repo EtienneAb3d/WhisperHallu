@@ -35,7 +35,6 @@ modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
  VADIterator,
  collect_chunks) = utils
 
-#modelSize="medium"#"tiny"#"medium" #"large"
 model_path = "whisper-medium-ct2/"#"whisper-medium-ct2/" "whisper-large-ct2/"
 beam_size=2
 model = None
