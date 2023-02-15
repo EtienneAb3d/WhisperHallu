@@ -23,8 +23,8 @@ https://neurospell.com/
 # Code
 
 ```
-from transcribeFasterWhisper import loadModel
-from transcribeFasterWhisper import transcribePrompt
+from transcribeHallu import loadModel
+from transcribeHallu import transcribePrompt
 
 ##### Need to be adapted for each language ####
 lng="en"
