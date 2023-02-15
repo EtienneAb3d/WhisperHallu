@@ -20,6 +20,51 @@ https://github.com/EtienneAb3d/WhisperTimeSync
 May be tested using NeuroSpell Dictaphone:<br/>
 https://neurospell.com/
 
+# Install
+
+**Standard Whisper**
+
+```
+sudo apt update && sudo apt install ffmpeg
+
+sudo apt install python3
+sudo apt install python3-pip
+sudo apt install virtualenv
+
+virtualenv -p python3 ../venvWhisper
+. ../venvWhisper/bin/activate
+
+pip install -U openai-whisper
+
+pip3 install torchaudio
+```
+
+**Faster Whisper**
+
+```
+sudo apt update && sudo apt install ffmpeg
+
+sudo apt install python3
+sudo apt install python3-pip
+sudo apt install virtualenv
+
+virtualenv -p python3 ../venvFasterWhisper
+. ../venvFasterWhisper/bin/activate
+
+git clone https://github.com/guillaumekln/faster-whisper.git
+cd faster-whisper/
+
+pip install -e .[conversion]
+pip install -e .
+
+cd ..
+
+ct2-transformers-converter --model openai/whisper-medium --output_dir whisper-medium-ct2 --quantization float16
+ct2-transformers-converter --model openai/whisper-large --output_dir whisper-large-ct2 --quantization float16
+
+pip3 install torchaudio
+```
+
 # Code
 
 ```

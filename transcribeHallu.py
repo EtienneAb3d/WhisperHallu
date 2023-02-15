@@ -122,7 +122,7 @@ def transcribeMARK(path: str,opts: dict,mode = 1,aLast=None):
     noMarkRE = "^(ar|he|hi|ru|zh)$"
     if(lng != None and re.match(noMarkRE,lng)):
     	#Need special voice marks
-    	mode = 0;
+    	mode = 0
     
     if os.path.exists("markers/WOK-MRK-"+opts["language"]+".wav"):
         mark1="markers/WOK-MRK-"+opts["language"]+".wav"
