@@ -7,7 +7,7 @@ See this discussion: https://github.com/openai/whisper/discussions/679
 - remove silences, and normalize loudness.
 - remove noise parts.
 - add voice markers.
-- apply speech compressor.
+- apply speech compressor (requires `ffmpeg` 4.4, while Google Colab is 4.2, it has to be upgraded, see below).
 - try to transcribe. If markers are present in output, transcription is OK.
 - if not, try to invert markers. If markers are present in output, transcription is OK.
 - if not, try without markers.
@@ -21,6 +21,12 @@ May be tested using NeuroSpell Dictaphone:<br/>
 https://neurospell.com/
 
 # Install
+
+**Upgrade ffmpeg on Google Colab**
+```
+! add-apt-repository -y ppa:savoury1/ffmpeg4
+! apt-get -qq install -y ffmpeg
+```
 
 **Standard Whisper**
 
