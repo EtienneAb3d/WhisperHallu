@@ -20,6 +20,10 @@ https://github.com/EtienneAb3d/WhisperTimeSync
 May be tested using NeuroSpell Dictaphone:<br/>
 https://neurospell.com/
 
+# Google Colab
+
+https://colab.research.google.com/drive/1-GpXaNaGFXKX9VXl60JGVVrGO41t09KA?usp=sharing
+
 # Install
 
 **Upgrade ffmpeg to version 4.4 on Google Colab**
