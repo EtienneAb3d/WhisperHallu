@@ -31,7 +31,8 @@ https://neurospell.com/
 
 Output:
 ==========
-ffmpeg version 4.2.7-0ubuntu0.1 [...]
+ffmpeg version 4.4.3-0ubuntu1~20.04.sav2 Copyright (c) 2000-2022 the FFmpeg developers
+[...]
 ```
 
 **Standard Whisper**
