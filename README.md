@@ -26,6 +26,12 @@ https://neurospell.com/
 ```
 ! add-apt-repository -y ppa:savoury1/ffmpeg4
 ! apt-get -qq install -y ffmpeg
+
+!ffmpeg -version
+
+Output:
+==========
+ffmpeg version 4.2.7-0ubuntu0.1 [...]
 ```
 
 **Standard Whisper**
