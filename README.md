@@ -22,7 +22,7 @@ https://neurospell.com/
 
 # Install
 
-**Upgrade ffmpeg on Google Colab**
+**Upgrade ffmpeg to version 4.4 on Google Colab**
 ```
 ! add-apt-repository -y ppa:savoury1/ffmpeg4
 ! apt-get -qq install -y ffmpeg
