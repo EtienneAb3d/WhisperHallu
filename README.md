@@ -3,6 +3,13 @@ Experimental code: sound file preprocessing to optimize Whisper transcriptions w
 
 See this discussion: https://github.com/openai/whisper/discussions/679
 
+**Latest news**: it seems that the processing of a **video clip with music** I took as an example in the Google Colab below doesn't provide with the best result. 
+For such input:
+- large model should be used
+- The VAD processing should be removed.
+- The speech compressor should be removed or tuned in such a case.
+
+
 # Algo
 - remove silences, and normalize loudness.
 - remove noise parts.
