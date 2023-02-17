@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import re
+from builtins import str
  
 if sys.version_info.major == 3 and sys.version_info.minor >= 10:
     print("Python >= 3.10")
@@ -66,15 +67,60 @@ def loadModel(gpu: str):
         model = whisper.load_model(modelSize,device=torch.device("cuda:"+gpu)) #May be "cpu"
     print("LOADED")
 
-def transcribePrompt(path: str,lng: str,prompt: str):
+def getPrompt(lng:str):
+    if(lng == "en"):
+        aOk=""
+        return "Whisper, Ok. "\
+            +"A pertinent sentence for your purpose in your language. "\
+            +"Ok, Whisper. Whisper, Ok. Ok, Whisper. Whisper, Ok. "\
+            +"Please find here, an unlikely ordinary sentence. "\
+            +"This is to avoid a repetition to be deleted. "\
+            +"Ok, Whisper. "
+    
+    if(lng == "fr"):
+        return "Whisper, Ok. "\
+            +"Une phrase pertinente pour votre propos dans votre langue. "\
+            +"Ok, Whisper. Whisper, Ok. Ok, Whisper. Whisper, Ok. "\
+            +"Merci de trouver ci-joint, une phrase ordinaire improbable. "\
+            +"Pour éviter une répétition à être supprimée. "\
+            +"Ok, Whisper. "
+    
+    if(lng == "uk"):
+        return "Whisper, Ok. "\
+            +"Доречне речення вашою мовою для вашої мети. "\
+            +"Ok, Whisper. Whisper, Ok. Ok, Whisper. Whisper, Ok. "\
+            +"Будь ласка, знайдіть тут навряд чи звичайне речення. "\
+            +"Це зроблено для того, щоб уникнути повторення, яке потрібно видалити. "\
+            +"Ok, Whisper. "
+    
+    if(lng == "hi"):
+        return "विस्पर, ओके. "\
+            +"आपकी भाषा में आपके उद्देश्य के लिए एक प्रासंगिक वाक्य। "\
+            +"ओके, विस्पर. विस्पर, ओके. ओके, विस्पर. विस्पर, ओके. "\
+            +"कृपया यहां खोजें, एक असंभावित सामान्य वाक्य। "\
+            +"यह हटाए जाने की पुनरावृत्ति से बचने के लिए है। "\
+            +"ओके, विस्पर. "
+
+
+def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None):
     """Whisper transcribe."""
+
+    if(lngInput == None):
+        lngInput=opts["language"]
+        print("Using output language as input language: "+lngInput)
+    
+    if(prompt == None):
+        prompt=getPrompt(lng)
+    
     print("=====transcribePrompt",flush=True)
     print("PATH="+path,flush=True)
+    print("LNGINPUT="+lngInput,flush=True)
     print("LNG="+lng,flush=True)
+    print("PROMPT="+prompt,flush=True)
     opts = dict(language=lng,initial_prompt=prompt)
-    return transcribeOpts(path, opts)
+    return transcribeOpts(path, opts,lngInput)
 
-def transcribeOpts(path: str,opts: dict):
+def transcribeOpts(path: str,opts: dict,lngInput=None):
     pathIn = path
     
     initTime = time.time()
@@ -104,7 +150,7 @@ def transcribeOpts(path: str,opts: dict):
          print("Warning: can't filter noises")
     
     startTime = time.time()
-    result = transcribeMARK(pathIn, opts, mode=1)
+    result = transcribeMARK(pathIn, opts, mode=1,lngInput=lngInput)
     
     if len(result["text"]) <= 0:
         result["text"] = "--"
@@ -115,21 +161,21 @@ def transcribeOpts(path: str,opts: dict):
     
     return result["text"]
 
-def transcribeMARK(path: str,opts: dict,mode = 1,aLast=None):
+def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None):
     pathIn = path
     
     lng = opts["language"]
-    noMarkRE = "^(ar|he|hi|ru|zh)$"
+    noMarkRE = "^(ar|he|ru|zh)$"
     if(lng != None and re.match(noMarkRE,lng)):
     	#Need special voice marks
     	mode = 0
     
-    if os.path.exists("markers/WOK-MRK-"+opts["language"]+".wav"):
-        mark1="markers/WOK-MRK-"+opts["language"]+".wav"
+    if os.path.exists("markers/WOK-MRK-"+lngInput+".wav"):
+        mark1="markers/WOK-MRK-"+lngInput+".wav"
     else:
         mark1="markers/WOK-MRK.wav"
-    if os.path.exists("markers/OKW-MRK-"+opts["language"]+".wav"):
-        mark2="markers/OKW-MRK-"+opts["language"]+".wav"
+    if os.path.exists("markers/OKW-MRK-"+lngInput+".wav"):
+        mark2="markers/OKW-MRK-"+lngInput+".wav"
     else:
         mark2="markers/OKW-MRK.wav"
     
@@ -197,21 +243,21 @@ def transcribeMARK(path: str,opts: dict,mode = 1,aLast=None):
         #result["text"] = ""
         #return result
     
-    aWhisper="(Whisper|Wisper|Wyspę|Wysper|Wispa|Уіспер|Ου ίσπερ|ウィスパー|विस्पर)"
-    aOk="(o[.]?k[.]?|okay|oké|okej|Окей|οκέι|オーケー|ओके)"
+    aWhisper="(Whisper|Wisper|Wyspę|Wysper|Wispa|Уіспер|Ου ίσπερ|위스퍼드|ウィスパー|विस्पर|विसपर)"
+    aOk="(o[.]?k[.]?|okay|oké|okej|Окей|οκέι|오케이|オーケー|ओके)"
     aSep="[.,!? ]*"
     if(mode == 1):
         aCleaned = re.sub(r"(^ *"+aWhisper+aSep+aOk+aSep+"|"+aOk+aSep+aWhisper+aSep+" *$)", "", result["text"], 2, re.IGNORECASE)
         if(re.match(r"^ *"+aWhisper+aSep+aOk+"("+aSep+aOk+")?"+aSep+aWhisper+aSep+" *$", result["text"], re.IGNORECASE)):
         	#Empty sound ?
-        	return transcribeMARK(path, opts, mode=2)
+        	return transcribeMARK(path, opts, mode=2,lngInput=lngInput)
         
         if(re.match(r"^ *"+aWhisper+aSep+aOk+aSep+".*"+aOk+aSep+aWhisper+aSep+" *$", result["text"], re.IGNORECASE)):
         	#GOOD!
         	result["text"] = aCleaned
         	return result
         
-        return transcribeMARK(path, opts, mode=2,aLast=aCleaned)
+        return transcribeMARK(path, opts, mode=2,lngInput=lngInput,aLast=aCleaned)
     
     if(mode == 2):
         aCleaned = re.sub(r"(^ *"+aOk+aSep+aWhisper+aSep+"|"+aWhisper+aSep+aOk+aSep+" *$)", "", result["text"], 2, re.IGNORECASE)
@@ -230,5 +276,5 @@ def transcribeMARK(path: str,opts: dict,mode = 1,aLast=None):
         	result["text"] = aCleaned
         	return result
         
-        return transcribeMARK(path, opts, mode=0,aLast=aCleaned)
+        return transcribeMARK(path, opts, mode=0,lngInput=lngInput,aLast=aCleaned)
 
