@@ -248,9 +248,9 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None):
     aSep="[.,!? ]*"
     if(mode == 1):
         aCleaned = re.sub(r"(^ *"+aWhisper+aSep+aOk+aSep+"|"+aOk+aSep+aWhisper+aSep+" *$)", "", result["text"], 2, re.IGNORECASE)
-        if(re.match(r"^ *"+aWhisper+aSep+aOk+"("+aSep+aOk+")?"+aSep+aWhisper+aSep+" *$", result["text"], re.IGNORECASE)):
+        if(re.match(r"^ *("+aOk+"|"+aSep+"|"+aWhisper+")*"+aWhisper+"("+aOk+"|"+aSep+"|"+aWhisper+")*"" *$", result["text"], re.IGNORECASE)):
         	#Empty sound ?
-        	return transcribeMARK(path, opts, mode=2,lngInput=lngInput)
+        	return transcribeMARK(path, opts, mode=2,lngInput=lngInput,aLast="")
         
         if(re.match(r"^ *"+aWhisper+aSep+aOk+aSep+".*"+aOk+aSep+aWhisper+aSep+" *$", result["text"], re.IGNORECASE)):
         	#GOOD!
@@ -266,8 +266,8 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None):
             result["text"] = aCleaned
             return result
             
-        if(re.match(r"^ *"+aOk+aSep+aWhisper+"("+aSep+aWhisper+")?"+aSep+aOk+aSep+" *$", result["text"], re.IGNORECASE)):
-        	#Empty sound ? Confirmed...
+        if(re.match(r"^ *("+aOk+"|"+aSep+"|"+aWhisper+")*"+aWhisper+"("+aOk+"|"+aSep+"|"+aWhisper+")*"" *$", result["text"], re.IGNORECASE)):
+        	#Empty sound ? 
         	result["text"] = ""
         	return result
         
