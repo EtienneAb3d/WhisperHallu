@@ -34,7 +34,6 @@ try:
     import whisper
     print("Using standard Whisper")
     isFaster = False
-    modelSize="medium"#"tiny"#"medium" #"large"
 except ImportError as e:
     pass
 
@@ -55,14 +54,20 @@ SAMPLING_RATE = 16000
 from threading import Lock, Thread
 lock = Lock()
 
-def loadModel(gpu: str):
+def loadModel(gpu: str,modelSize=None):
     global model
     device="cuda" #cuda cpu
     if isFaster:
+        if(modelSize == "large"):
+            modelPath = "whisper-large-ct2/"
+        else:
+            modelPath = "whisper-medium-ct2/"
         print("LOADING: "+modelPath+" GPU: "+gpu+" BS: "+str(beam_size))
         compute_type="float16"# float16 int8_float16 int8
         model = WhisperModel(modelPath, device=device,device_index=int(gpu), compute_type=compute_type)
     else:
+        if(modelSize == None):
+            modelSize="medium"#"tiny"#"medium" #"large"
         print("LOADING: "+modelSize+" GPU:"+gpu+" BS: "+str(beam_size))
         model = whisper.load_model(modelSize,device=torch.device("cuda:"+gpu)) #May be "cpu"
     print("LOADED")
@@ -102,7 +107,7 @@ def getPrompt(lng:str):
             +"ओके, विस्पर. "
 
 
-def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None):
+def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False):
     """Whisper transcribe."""
 
     if(lngInput == None):
@@ -110,7 +115,10 @@ def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None):
         print("Using output language as input language: "+lngInput)
     
     if(prompt == None):
-        prompt=getPrompt(lng)
+        if(not isMusic):
+            prompt=getPrompt(lng)
+        else:
+            prompt="";
     
     print("=====transcribePrompt",flush=True)
     print("PATH="+path,flush=True)
@@ -118,9 +126,9 @@ def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None):
     print("LNG="+lng,flush=True)
     print("PROMPT="+prompt,flush=True)
     opts = dict(language=lng,initial_prompt=prompt)
-    return transcribeOpts(path, opts,lngInput)
+    return transcribeOpts(path, opts,lngInput,isMusic=isMusic)
 
-def transcribeOpts(path: str,opts: dict,lngInput=None):
+def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
     pathIn = path
     
     initTime = time.time()
@@ -137,20 +145,21 @@ def transcribeOpts(path: str,opts: dict,lngInput=None):
     except:
          print("Warning: can't filter blanks")
     
-    startTime = time.time()
-    try:
-        pathVAD = pathIn+".VAD.wav"
-        wav = read_audio(pathIn, sampling_rate=SAMPLING_RATE)
-        speech_timestamps = get_speech_timestamps(wav, modelVAD, sampling_rate=SAMPLING_RATE)
-        save_audio(pathVAD,collect_chunks(speech_timestamps, wav), sampling_rate=SAMPLING_RATE)
-        print("T=",(time.time()-startTime))
-        print("PATH="+pathVAD,flush=True)
-        pathIn = pathVAD
-    except:
-         print("Warning: can't filter noises")
+    if(not isMusic):
+        startTime = time.time()
+        try:
+            pathVAD = pathIn+".VAD.wav"
+            wav = read_audio(pathIn, sampling_rate=SAMPLING_RATE)
+            speech_timestamps = get_speech_timestamps(wav, modelVAD, sampling_rate=SAMPLING_RATE)
+            save_audio(pathVAD,collect_chunks(speech_timestamps, wav), sampling_rate=SAMPLING_RATE)
+            print("T=",(time.time()-startTime))
+            print("PATH="+pathVAD,flush=True)
+            pathIn = pathVAD
+        except:
+             print("Warning: can't filter noises")
     
     startTime = time.time()
-    result = transcribeMARK(pathIn, opts, mode=1,lngInput=lngInput)
+    result = transcribeMARK(pathIn, opts, mode=1,lngInput=lngInput,isMusic=isMusic)
     
     if len(result["text"]) <= 0:
         result["text"] = "--"
@@ -161,7 +170,7 @@ def transcribeOpts(path: str,opts: dict,lngInput=None):
     
     return result["text"]
 
-def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None):
+def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusic=False):
     pathIn = path
     
     lng = opts["language"]
@@ -169,7 +178,11 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None):
     if(lng != None and re.match(noMarkRE,lng)):
     	#Need special voice marks
     	mode = 0
-    
+
+    if(isMusic):
+        #Markers are not really interesting with music
+        mode = 0
+        
     if os.path.exists("markers/WOK-MRK-"+lngInput+".wav"):
         mark1="markers/WOK-MRK-"+lngInput+".wav"
     else:
@@ -187,21 +200,25 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None):
     if(mode == 0):
         print("["+str(mode)+"] PATH="+pathIn,flush=True)
     else:
-    	startTime = time.time()
     	try:
+            startTime = time.time()
             pathMRK = pathIn+".MRK"+".wav"
             aCmd = "ffmpeg -y -i "+mark1+" -i "+pathIn+" -i "+mark2+" -filter_complex \"[0:a][1:a][2:a]concat=n=3:v=0:a=1[a]\" -map \"[a]\" -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathMRK+" > "+pathMRK+".log 2>&1"
             print("CMD: "+aCmd)
             os.system(aCmd)
+            print("T=",(time.time()-startTime))
+            print("["+str(mode)+"] PATH="+pathMRK,flush=True)
             pathIn = pathMRK
             
-            pathCPS = pathIn+".CPS"+".wav"
-            aCmd = "ffmpeg -y -i "+pathIn+" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathCPS+" > "+pathCPS+".log 2>&1"
-            print("CMD: "+aCmd)
-            os.system(aCmd)
-            print("T=",(time.time()-startTime))
-            print("["+str(mode)+"] PATH="+pathCPS,flush=True)
-            pathIn = pathCPS
+            if(not isMusic):
+                startTime = time.time()
+                pathCPS = pathIn+".CPS"+".wav"
+                aCmd = "ffmpeg -y -i "+pathIn+" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathCPS+" > "+pathCPS+".log 2>&1"
+                print("CMD: "+aCmd)
+                os.system(aCmd)
+                print("T=",(time.time()-startTime))
+                print("["+str(mode)+"] PATH="+pathCPS,flush=True)
+                pathIn = pathCPS
     	except:
     		 print("Warning: can't add markers")
     

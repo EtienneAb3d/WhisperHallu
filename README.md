@@ -96,7 +96,11 @@ from transcribeHallu import loadModel
 from transcribeHallu import transcribePrompt
 
 ##### The audio language may be different from the one for the output transcription.
+path="/path/to/your/en/sound/file"
 lngInput="en"
+
+##### Activate this for music file to get a minimal processing
+isMusic=False
 
 ##### Need to be adapted for each language.
 ##### For prompt examples, see transcribeHallu.py getPrompt(lng:str)
@@ -109,8 +113,9 @@ prompt= "Whisper, Ok. "\
 	+"This is to avoid a repetition to be deleted. "\
 	+"Ok, Whisper. "
 
-path="/path/to/your/en/sound/file"
+##### Model size to use
+modelSize="medium"
+loadModel("0",modelSize=modelSize)
 
-loadModel("0")
-result = transcribePrompt(path=path, lng=lng, prompt=prompt, lngInput=lngInput)
+result = transcribePrompt(path=path, lng=lng, prompt=prompt, lngInput=lngInput,isMusic=isMusic)
 ```
