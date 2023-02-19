@@ -33,7 +33,7 @@ try:
     #Standard Whisper: https://github.com/openai/whisper
     import whisper
     print("Using standard Whisper")
-    isFaster = False
+    whisperFound = "STD"
 except ImportError as e:
     pass
 
@@ -41,8 +41,11 @@ try:
     #FasterWhisper: https://github.com/guillaumekln/faster-whisper
     from faster_whisper import WhisperModel
     print("Using Faster Whisper")
-    isFaster = True
+    whisperFound = "FSTR"
     modelPath = "whisper-medium-ct2/"#"whisper-medium-ct2/" "whisper-large-ct2/"
+    if not os.path.exists(modelPath):
+        print("Faster installation found, but "+modelPath+" model not found")
+        exit(-1)
 except ImportError as e:
     pass
 
@@ -57,20 +60,24 @@ lock = Lock()
 def loadModel(gpu: str,modelSize=None):
     global model
     device="cuda" #cuda cpu
-    if isFaster:
-        if(modelSize == "large"):
-            modelPath = "whisper-large-ct2/"
-        else:
-            modelPath = "whisper-medium-ct2/"
-        print("LOADING: "+modelPath+" GPU: "+gpu+" BS: "+str(beam_size))
-        compute_type="float16"# float16 int8_float16 int8
-        model = WhisperModel(modelPath, device=device,device_index=int(gpu), compute_type=compute_type)
-    else:
-        if(modelSize == None):
-            modelSize="medium"#"tiny"#"medium" #"large"
-        print("LOADING: "+modelSize+" GPU:"+gpu+" BS: "+str(beam_size))
-        model = whisper.load_model(modelSize,device=torch.device("cuda:"+gpu)) #May be "cpu"
-    print("LOADED")
+    try:
+        if whisperFound == "FSTR":
+            if(modelSize == "large"):
+                modelPath = "whisper-large-ct2/"
+            else:
+                modelPath = "whisper-medium-ct2/"
+            print("LOADING: "+modelPath+" GPU: "+gpu+" BS: "+str(beam_size))
+            compute_type="float16"# float16 int8_float16 int8
+            model = WhisperModel(modelPath, device=device,device_index=int(gpu), compute_type=compute_type)
+        elif whisperFound == "STD":
+            if(modelSize == None):
+                modelSize="medium"#"tiny"#"medium" #"large"
+            print("LOADING: "+modelSize+" GPU:"+gpu+" BS: "+str(beam_size))
+            model = whisper.load_model(modelSize,device=torch.device("cuda:"+gpu)) #May be "cpu"
+        print("LOADED")
+    except:
+        printl("Can't load Whisper model: "+modelSize)
+        exit(-1)
 
 def getPrompt(lng:str):
     if(lng == "en"):
@@ -229,7 +236,7 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
         if beam_size > 1:
         	transcribe_options = dict(beam_size=beam_size,**opts)
         
-        if isFaster:
+        if whisperFound:
             segments, info = model.transcribe(pathIn,**transcribe_options)
             result = {}
             result["text"] = ""
