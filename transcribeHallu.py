@@ -45,7 +45,7 @@ try:
     modelPath = "whisper-medium-ct2/"#"whisper-medium-ct2/" "whisper-large-ct2/"
     if not os.path.exists(modelPath):
         print("Faster installation found, but "+modelPath+" model not found")
-        exit(-1)
+        sys.exit(-1)
 except ImportError as e:
     pass
 
@@ -76,8 +76,8 @@ def loadModel(gpu: str,modelSize=None):
             model = whisper.load_model(modelSize,device=torch.device("cuda:"+gpu)) #May be "cpu"
         print("LOADED")
     except:
-        printl("Can't load Whisper model: "+modelSize)
-        exit(-1)
+        print("Can't load Whisper model: "+modelSize)
+        sys.exit(-1)
 
 def getPrompt(lng:str):
     if(lng == "en"):
