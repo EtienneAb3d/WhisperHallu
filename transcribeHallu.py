@@ -29,6 +29,10 @@ modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
  VADIterator,
  collect_chunks) = utils
 
+from spleeter.separator import Separator
+
+separator = Separator('spleeter:2stems')
+
 try:
     #Standard Whisper: https://github.com/openai/whisper
     import whisper
@@ -112,6 +116,9 @@ def getPrompt(lng:str):
             +"कृपया यहां खोजें, एक असंभावित सामान्य वाक्य। "\
             +"यह हटाए जाने की पुनरावृत्ति से बचने के लिए है। "\
             +"ओके, विस्पर. "
+    
+    #Not Already defined?
+    return ""
 
 
 def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False):
@@ -142,7 +149,21 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
     
     startTime = time.time()
     try:
-        pathSILCUT = path+".SILCUT"+".wav"
+        spleeterDir=pathIn+".spleeter"
+        if(not os.path.exists(spleeterDir)):
+            os.mkdir(spleeterDir)
+        pathSpleeter=spleeterDir+"/"+os.path.splitext(os.path.basename(pathIn))[0]+"/vocals.wav"
+        separator.separate_to_file(pathIn, spleeterDir)
+        print("T=",(time.time()-startTime))
+        print("PATH="+pathSpleeter,flush=True)
+        pathIn = pathSpleeter
+    except:
+         print("Warning: can't split vocals")
+    
+
+    startTime = time.time()
+    try:
+        pathSILCUT = pathIn+".SILCUT"+".wav"
         aCmd = "ffmpeg -y -i "+pathIn+" -af \"silenceremove=start_periods=1:stop_periods=-1:start_threshold=-50dB:stop_threshold=-50dB:start_silence=0.2:stop_silence=0.2, loudnorm\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathSILCUT+" > "+pathSILCUT+".log 2>&1"
         print("CMD: "+aCmd)
         os.system(aCmd)
@@ -217,15 +238,15 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             print("["+str(mode)+"] PATH="+pathMRK,flush=True)
             pathIn = pathMRK
             
-            if(not isMusic):
-                startTime = time.time()
-                pathCPS = pathIn+".CPS"+".wav"
-                aCmd = "ffmpeg -y -i "+pathIn+" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathCPS+" > "+pathCPS+".log 2>&1"
-                print("CMD: "+aCmd)
-                os.system(aCmd)
-                print("T=",(time.time()-startTime))
-                print("["+str(mode)+"] PATH="+pathCPS,flush=True)
-                pathIn = pathCPS
+            #if(not isMusic):
+            startTime = time.time()
+            pathCPS = pathIn+".CPS"+".wav"
+            aCmd = "ffmpeg -y -i "+pathIn+" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathCPS+" > "+pathCPS+".log 2>&1"
+            print("CMD: "+aCmd)
+            os.system(aCmd)
+            print("T=",(time.time()-startTime))
+            print("["+str(mode)+"] PATH="+pathCPS,flush=True)
+            pathIn = pathCPS
     	except:
     		 print("Warning: can't add markers")
     

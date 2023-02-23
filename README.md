@@ -39,6 +39,12 @@ ffmpeg version 4.4.3-0ubuntu1~20.04.sav2 Copyright (c) 2000-2022 the FFmpeg deve
 [...]
 ```
 
+**Spleeter
+
+```
+pip install spleeter
+```
+
 **Standard Whisper**
 
 ```
