@@ -2,7 +2,6 @@ import sys
 import os
 import time
 import re
-from builtins import str
  
 if sys.version_info.major == 3 and sys.version_info.minor >= 10:
     print("Python >= 3.10")
@@ -29,9 +28,10 @@ modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
  VADIterator,
  collect_chunks) = utils
 
-from spleeter.separator import Separator
-
-separator = Separator('spleeter:2stems')
+useSpleeter=False
+if(useSpleeter):
+    from spleeter.separator import Separator
+    separator = Separator('spleeter:2stems')
 
 try:
     #Standard Whisper: https://github.com/openai/whisper
@@ -147,18 +147,19 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
     
     initTime = time.time()
     
-    startTime = time.time()
-    try:
-        spleeterDir=pathIn+".spleeter"
-        if(not os.path.exists(spleeterDir)):
-            os.mkdir(spleeterDir)
-        pathSpleeter=spleeterDir+"/"+os.path.splitext(os.path.basename(pathIn))[0]+"/vocals.wav"
-        separator.separate_to_file(pathIn, spleeterDir)
-        print("T=",(time.time()-startTime))
-        print("PATH="+pathSpleeter,flush=True)
-        pathIn = pathSpleeter
-    except:
-         print("Warning: can't split vocals")
+    if(useSpleeter):
+        startTime = time.time()
+        try:
+            spleeterDir=pathIn+".spleeter"
+            if(not os.path.exists(spleeterDir)):
+                os.mkdir(spleeterDir)
+            pathSpleeter=spleeterDir+"/"+os.path.splitext(os.path.basename(pathIn))[0]+"/vocals.wav"
+            separator.separate_to_file(pathIn, spleeterDir)
+            print("T=",(time.time()-startTime))
+            print("PATH="+pathSpleeter,flush=True)
+            pathIn = pathSpleeter
+        except:
+             print("Warning: can't split vocals")
     
 
     startTime = time.time()
@@ -202,6 +203,10 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
     pathIn = path
     
     lng = opts["language"]
+    
+    if(lngInput == None):
+        lngInput = lng
+        
     noMarkRE = "^(ar|he|ru|zh)$"
     if(lng != None and re.match(noMarkRE,lng)):
     	#Need special voice marks
