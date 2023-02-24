@@ -28,10 +28,12 @@ modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
  VADIterator,
  collect_chunks) = utils
 
-useSpleeter=False
+useSpleeter=True
 if(useSpleeter):
+    from spleeter.audio import STFTBackend
+    backend = STFTBackend.LIBROSA
     from spleeter.separator import Separator
-    separator = Separator('spleeter:2stems')
+    separator = Separator('spleeter:2stems-16kHz',stft_backend=backend)
 
 try:
     #Standard Whisper: https://github.com/openai/whisper
@@ -209,8 +211,8 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
         
     noMarkRE = "^(ar|he|ru|zh)$"
     if(lng != None and re.match(noMarkRE,lng)):
-    	#Need special voice marks
-    	mode = 0
+        #Need special voice marks
+        mode = 0
 
     if(isMusic):
         #Markers are not really interesting with music
@@ -229,11 +231,11 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
         mark = mark1
         mark1 = mark2
         mark2 = mark
-    	
+        
     if(mode == 0):
         print("["+str(mode)+"] PATH="+pathIn,flush=True)
     else:
-    	try:
+        try:
             startTime = time.time()
             pathMRK = pathIn+".MRK"+".wav"
             aCmd = "ffmpeg -y -i "+mark1+" -i "+pathIn+" -i "+mark2+" -filter_complex \"[0:a][1:a][2:a]concat=n=3:v=0:a=1[a]\" -map \"[a]\" -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathMRK+" > "+pathMRK+".log 2>&1"
@@ -252,15 +254,15 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             print("T=",(time.time()-startTime))
             print("["+str(mode)+"] PATH="+pathCPS,flush=True)
             pathIn = pathCPS
-    	except:
-    		 print("Warning: can't add markers")
+        except:
+             print("Warning: can't add markers")
     
     startTime = time.time()
     lock.acquire()
     try:
         transcribe_options = dict(**opts)#avoid to add beam_size opt several times
         if beam_size > 1:
-        	transcribe_options = dict(beam_size=beam_size,**opts)
+            transcribe_options = dict(beam_size=beam_size,**opts)
         
         if whisperFound:
             segments, info = model.transcribe(pathIn,**transcribe_options)
@@ -275,12 +277,12 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
         print("T=",(time.time()-startTime))
         print("TRANS="+result["text"],flush=True)
     except Exception as e: 
-    	print(e)
-    	traceback.print_exc()
-    	lock.release()
-    	result = {}
-    	result["text"] = ""
-    	return result
+        print(e)
+        traceback.print_exc()
+        lock.release()
+        result = {}
+        result["text"] = ""
+        return result
     
     lock.release()
     
@@ -299,13 +301,13 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
     if(mode == 1):
         aCleaned = re.sub(r"(^ *"+aWhisper+aSep+aOk+aSep+"|"+aOk+aSep+aWhisper+aSep+" *$)", "", result["text"], 2, re.IGNORECASE)
         if(re.match(r"^ *("+aOk+"|"+aSep+"|"+aWhisper+")*"+aWhisper+"("+aOk+"|"+aSep+"|"+aWhisper+")* *$", result["text"], re.IGNORECASE)):
-        	#Empty sound ?
-        	return transcribeMARK(path, opts, mode=2,lngInput=lngInput,aLast="")
+            #Empty sound ?
+            return transcribeMARK(path, opts, mode=2,lngInput=lngInput,aLast="")
         
         if(re.match(r"^ *"+aWhisper+aSep+aOk+aSep+".*"+aOk+aSep+aWhisper+aSep+" *$", result["text"], re.IGNORECASE)):
-        	#GOOD!
-        	result["text"] = aCleaned
-        	return result
+            #GOOD!
+            result["text"] = aCleaned
+            return result
         
         return transcribeMARK(path, opts, mode=2,lngInput=lngInput,aLast=aCleaned)
     
@@ -317,14 +319,14 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             return result
             
         if(re.match(r"^ *("+aOk+"|"+aSep+"|"+aWhisper+")*"+aWhisper+"("+aOk+"|"+aSep+"|"+aWhisper+")* *$", result["text"], re.IGNORECASE)):
-        	#Empty sound ? 
-        	result["text"] = ""
-        	return result
+            #Empty sound ? 
+            result["text"] = ""
+            return result
         
         if(re.match(r"^ *"+aOk+aSep+aWhisper+aSep+".*"+aWhisper+aSep+aOk+aSep+" *$", result["text"], re.IGNORECASE)):
-        	#GOOD!
-        	result["text"] = aCleaned
-        	return result
+            #GOOD!
+            result["text"] = aCleaned
+            return result
         
         return transcribeMARK(path, opts, mode=0,lngInput=lngInput,aLast=aCleaned)
 

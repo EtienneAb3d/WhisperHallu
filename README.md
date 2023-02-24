@@ -4,7 +4,7 @@ Experimental code: sound file preprocessing to optimize Whisper transcriptions w
 See this discussion: https://github.com/openai/whisper/discussions/679
 
 # Algo
-- remove noise by voice extraction using Spleeter (deactivated by default, need to debug)
+- remove noise by voice extraction using Spleeter
 - remove silences, and normalize loudness.
 - remove noise parts using Silero VAD.
 - add voice markers.
