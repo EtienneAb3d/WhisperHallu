@@ -264,14 +264,14 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
         if beam_size > 1:
             transcribe_options = dict(beam_size=beam_size,**opts)
         
-        if whisperFound:
+        if whisperFound == "FSTR":
             segments, info = model.transcribe(pathIn,**transcribe_options)
             result = {}
             result["text"] = ""
             for segment in segments:
                 result["text"] += segment.text
         else:
-            transcribe_options = dict(task="transcribe", **opts)
+            transcribe_options = dict(task="transcribe", **transcribe_options)
             result = model.transcribe(pathIn,**transcribe_options)
         
         print("T=",(time.time()-startTime))
