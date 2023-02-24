@@ -4,9 +4,9 @@ Experimental code: sound file preprocessing to optimize Whisper transcriptions w
 See this discussion: https://github.com/openai/whisper/discussions/679
 
 # Algo
-- remove noise by voice extraction using Spleeter
-- remove silences, and normalize loudness.
-- remove noise parts using Silero VAD.
+- remove noise by voice extraction using [Deezer Spleeter](https://github.com/deezer/spleeter)
+- remove silences, and normalize loudness with ffmpeg.
+- remove noise parts using [Silero VAD](https://github.com/snakers4/silero-vad).
 - add voice markers.
 - apply speech compressor (requires `ffmpeg` 4.4, while Google Colab is 4.2, it has to be upgraded, see below).
 - try to transcribe. If markers are present in output, transcription is OK.
