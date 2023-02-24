@@ -127,7 +127,7 @@ def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False)
     """Whisper transcribe."""
 
     if(lngInput == None):
-        lngInput=opts["language"]
+        lngInput=lng
         print("Using output language as input language: "+lngInput)
     
     if(prompt == None):
