@@ -4,7 +4,7 @@ Experimental code: sound file preprocessing to optimize Whisper transcriptions w
 See this discussion: https://github.com/openai/whisper/discussions/679
 
 # Algo
-- remove noise by voice extraction using [Deezer Spleeter](https://github.com/deezer/spleeter)
+- remove noise by voice extraction using  [Facebook Demucs](https://github.com/facebookresearch/demucs) or [Deezer Spleeter](https://github.com/deezer/spleeter)
 - remove silences, and normalize loudness with ffmpeg.
 - remove noise parts using [Silero VAD](https://github.com/snakers4/silero-vad).
 - add voice markers.
