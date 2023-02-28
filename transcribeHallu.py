@@ -17,7 +17,7 @@ import traceback
 import torch
 
 torch.set_num_threads(1)
-useSileroVAD=True
+useSileroVAD=False
 if(useSileroVAD):
     modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                               model='silero_vad',
@@ -41,6 +41,8 @@ useDemucs=True
 if(useDemucs):
     import subprocess
     print("Using Demucs")
+
+useCompressor=True
 
 try:
     #Standard Whisper: https://github.com/openai/whisper
@@ -96,6 +98,14 @@ def loadModel(gpu: str,modelSize=None):
         print("Can't load Whisper model: "+modelSize)
         sys.exit(-1)
 
+def getDuration(aLog:str):
+    with open(aLog) as f:
+        lines = f.readlines()
+        for line in lines:
+            if(re.match(r"^ *Duration: [0-9][0-9]:[0-9][0-9]:[0-9][0-9][.][0-9][0-9], .*$", line, re.IGNORECASE)):
+                duration = re.sub(r"(^ *Duration: *|[,.].*$)", "", line, 2, re.IGNORECASE)
+                return sum(x * int(t) for x, t in zip([3600, 60, 1], duration.split(":")))
+    
 def getPrompt(lng:str):
     if(lng == "en"):
         aOk=""
@@ -191,6 +201,7 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
         except:
              print("Warning: can't split vocals")
 
+    duration = -1
     startTime = time.time()
     try:
         pathSILCUT = pathIn+".SILCUT"+".wav"
@@ -200,6 +211,8 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
         print("T=",(time.time()-startTime))
         print("PATH="+pathSILCUT,flush=True)
         pathIn = pathSILCUT
+        duration = getDuration(pathSILCUT+".log")
+        print("DURATION="+str(duration))
     except:
          print("Warning: can't filter blanks")
     
@@ -216,8 +229,13 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
         except:
              print("Warning: can't filter noises")
     
+    mode=1
+    if(duration > 30):
+        print("NOT USING MARKS FOR DURATION > 30s")
+        mode=0
+    
     startTime = time.time()
-    result = transcribeMARK(pathIn, opts, mode=1,lngInput=lngInput,isMusic=isMusic)
+    result = transcribeMARK(pathIn, opts, mode=mode,lngInput=lngInput,isMusic=isMusic)
     
     if len(result["text"]) <= 0:
         result["text"] = "--"
@@ -272,15 +290,15 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             print("["+str(mode)+"] PATH="+pathMRK,flush=True)
             pathIn = pathMRK
             
-            #if(not isMusic):
-            startTime = time.time()
-            pathCPS = pathIn+".CPS"+".wav"
-            aCmd = "ffmpeg -y -i "+pathIn+" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathCPS+" > "+pathCPS+".log 2>&1"
-            print("CMD: "+aCmd)
-            os.system(aCmd)
-            print("T=",(time.time()-startTime))
-            print("["+str(mode)+"] PATH="+pathCPS,flush=True)
-            pathIn = pathCPS
+            if(useCompressor):
+                startTime = time.time()
+                pathCPS = pathIn+".CPS"+".wav"
+                aCmd = "ffmpeg -y -i "+pathIn+" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathCPS+" > "+pathCPS+".log 2>&1"
+                print("CMD: "+aCmd)
+                os.system(aCmd)
+                print("T=",(time.time()-startTime))
+                print("["+str(mode)+"] PATH="+pathCPS,flush=True)
+                pathIn = pathCPS
         except:
              print("Warning: can't add markers")
     
