@@ -40,13 +40,19 @@ ffmpeg version 4.4.3-0ubuntu1~20.04.sav2 Copyright (c) 2000-2022 the FFmpeg deve
 [...]
 ```
 
-**Spleeter**
+**Demucs (if used)**
+
+```
+pip install -U demucs
+```
+
+**Spleeter (if used)**
 
 ```
 pip install spleeter
 ```
 
-**Standard Whisper**
+**Standard Whisper (if used)**
 
 ```
 sudo apt update && sudo apt install ffmpeg
@@ -63,7 +69,7 @@ pip install -U openai-whisper
 pip3 install torchaudio
 ```
 
-**Faster Whisper**
+**Faster Whisper (if used)**
 
 ```
 sudo apt update && sudo apt install ffmpeg

@@ -28,12 +28,18 @@ modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
  VADIterator,
  collect_chunks) = utils
 
-useSpleeter=True
+useSpleeter=False
 if(useSpleeter):
     from spleeter.audio import STFTBackend
     backend = STFTBackend.LIBROSA
     from spleeter.separator import Separator
+    print("Using spleeter:2stems-16kHz")
     separator = Separator('spleeter:2stems-16kHz',stft_backend=backend)
+
+useDemucs=True
+if(useDemucs):
+    import subprocess
+    print("Using Demucs")
 
 try:
     #Standard Whisper: https://github.com/openai/whisper
@@ -57,6 +63,8 @@ except ImportError as e:
 
 beam_size=2
 model = None
+device = "cuda" #cuda / cpu
+cudaIdx = 0
 
 SAMPLING_RATE = 16000
 
@@ -65,7 +73,9 @@ lock = Lock()
 
 def loadModel(gpu: str,modelSize=None):
     global model
-    device="cuda" #cuda cpu
+    global device
+    global cudaIdx
+    cudaIdx = gpu
     try:
         if whisperFound == "FSTR":
             if(modelSize == "large"):
@@ -163,6 +173,22 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
         except:
              print("Warning: can't split vocals")
     
+    if(useDemucs):
+        startTime = time.time()
+        try:
+            demucsDir=pathIn+".demucs"
+            if(not os.path.exists(demucsDir)):
+                os.mkdir(demucsDir)
+            pathDemucs=demucsDir+"/htdemucs/"+os.path.splitext(os.path.basename(pathIn))[0]+"/vocals.wav"
+            #Demucs seems complex, using CLI cmd for now
+            aCmd = "python -m demucs --two-stems=vocals -d "+device+":"+cudaIdx+" --out "+demucsDir+" "+pathIn
+            print("CMD: "+aCmd)
+            os.system(aCmd)
+            print("T=",(time.time()-startTime))
+            print("PATH="+pathDemucs,flush=True)
+            pathIn = pathDemucs
+        except:
+             print("Warning: can't split vocals")
 
     startTime = time.time()
     try:
