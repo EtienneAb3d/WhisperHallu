@@ -17,16 +17,17 @@ import traceback
 import torch
 
 torch.set_num_threads(1)
-modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
+useSileroVAD=True
+if(useSileroVAD):
+    modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                               model='silero_vad',
                               force_reload=False,
                               onnx=False)
-
-(get_speech_timestamps,
- save_audio,
- read_audio,
- VADIterator,
- collect_chunks) = utils
+    (get_speech_timestamps,
+     save_audio,
+     read_audio,
+     VADIterator,
+     collect_chunks) = utils
 
 useSpleeter=False
 if(useSpleeter):
@@ -202,7 +203,7 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
     except:
          print("Warning: can't filter blanks")
     
-    if(not isMusic):
+    if(not isMusic and useSileroVAD):
         startTime = time.time()
         try:
             pathVAD = pathIn+".VAD.wav"
