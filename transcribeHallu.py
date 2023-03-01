@@ -17,7 +17,7 @@ import traceback
 import torch
 
 torch.set_num_threads(1)
-useSileroVAD=False
+useSileroVAD=True
 if(useSileroVAD):
     modelVAD, utils = torch.hub.load(repo_or_dir='snakers4/silero-vad',
                               model='silero_vad',
@@ -224,14 +224,15 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
         try:
             pathVAD = pathIn+".VAD.wav"
             wav = read_audio(pathIn, sampling_rate=SAMPLING_RATE)
-            speech_timestamps = get_speech_timestamps(wav, modelVAD, sampling_rate=SAMPLING_RATE)
+            #https://github.com/snakers4/silero-vad/blob/master/utils_vad.py#L161
+            speech_timestamps = get_speech_timestamps(wav, modelVAD,threshold=0.5,min_silence_duration_ms=500, sampling_rate=SAMPLING_RATE)
             save_audio(pathVAD,collect_chunks(speech_timestamps, wav), sampling_rate=SAMPLING_RATE)
             print("T=",(time.time()-startTime))
             print("PATH="+pathVAD,flush=True)
             pathIn = pathVAD
         except:
              print("Warning: can't filter noises")
-    
+
     mode=1
     if(duration > 30):
         print("NOT USING MARKS FOR DURATION > 30s")
