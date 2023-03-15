@@ -129,3 +129,6 @@ loadModel("0",modelSize=modelSize)
 
 result = transcribePrompt(path=path, lng=lng, prompt=prompt, lngInput=lngInput,isMusic=isMusic)
 ```
+
+If you are interested in a commercial/industrial linguistic project, contact us:<br/>
+https://cubaix.com
