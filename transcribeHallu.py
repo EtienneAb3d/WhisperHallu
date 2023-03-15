@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import re
+from _io import StringIO
  
 if sys.version_info.major == 3 and sys.version_info.minor >= 10:
     print("Python >= 3.10")
@@ -51,6 +52,8 @@ try:
     import whisper
     print("Using standard Whisper")
     whisperFound = "STD"
+    from pathlib import Path
+    from whisper.utils import WriteSRT
 except ImportError as e:
     pass
 
@@ -107,7 +110,13 @@ def getDuration(aLog:str):
             if(re.match(r"^ *Duration: [0-9][0-9]:[0-9][0-9]:[0-9][0-9][.][0-9][0-9], .*$", line, re.IGNORECASE)):
                 duration = re.sub(r"(^ *Duration: *|[,.].*$)", "", line, 2, re.IGNORECASE)
                 return sum(x * int(t) for x, t in zip([3600, 60, 1], duration.split(":")))
-    
+
+def formatTimeStamp(aT=0):
+    aH = int(aT/3600)
+    aM = int((aT%3600)/60)
+    aS = (aT%60)
+    return "%02d:%02d:%06.3f" % (aH,aM,aS)
+
 def getPrompt(lng:str):
     if(lng == "en"):
         aOk=""
@@ -146,7 +155,7 @@ def getPrompt(lng:str):
     return ""
 
 
-def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False):
+def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False,addSRT=False):
     """Whisper transcribe."""
 
     if(lngInput == None):
@@ -165,10 +174,11 @@ def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False)
     print("LNG="+lng,flush=True)
     print("PROMPT="+prompt,flush=True)
     opts = dict(language=lng,initial_prompt=prompt)
-    return transcribeOpts(path, opts,lngInput,isMusic=isMusic)
+    return transcribeOpts(path, opts,lngInput,isMusic=isMusic,addSRT=addSRT)
 
-def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
+def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False):
     pathIn = path
+    pathNoCut = path
     
     initTime = time.time()
     
@@ -182,7 +192,7 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
             separator.separate_to_file(pathIn, spleeterDir)
             print("T=",(time.time()-startTime))
             print("PATH="+pathSpleeter,flush=True)
-            pathIn = pathSpleeter
+            pathNoCut = pathIn = pathSpleeter
         except:
              print("Warning: can't split vocals")
     
@@ -200,7 +210,7 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
         demucs_audio(pathIn=pathIn,model=modelDemucs,device="cuda:"+cudaIdx,pathVocals=pathDemucs,pathOther=pathIn+".other.wav")
         print("T=",(time.time()-startTime))
         print("PATH="+pathDemucs,flush=True)
-        pathIn = pathDemucs
+        pathNoCut = pathIn = pathDemucs
         #except:
         #     print("Warning: can't split vocals")
 
@@ -244,6 +254,15 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False):
     if len(result["text"]) <= 0:
         result["text"] = "--"
     
+    if(addSRT):
+        #Better timestamps using original music clip
+        if(isMusic):
+            resultSRT = transcribeMARK(path, opts, mode=3,lngInput=lngInput,isMusic=isMusic)
+        else:
+            resultSRT = transcribeMARK(pathNoCut, opts, mode=3,lngInput=lngInput,isMusic=isMusic)
+        
+        result["text"] += resultSRT["text"]
+    
     print("T=",(time.time()-initTime))
     print("s/c=",(time.time()-initTime)/len(result["text"]))
     print("c/s=",len(result["text"])/(time.time()-initTime))
@@ -263,7 +282,7 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
         #Need special voice marks
         mode = 0
 
-    if(isMusic):
+    if(isMusic and mode != 3):
         #Markers are not really interesting with music
         mode = 0
         
@@ -285,16 +304,17 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
         print("["+str(mode)+"] PATH="+pathIn,flush=True)
     else:
         try:
-            startTime = time.time()
-            pathMRK = pathIn+".MRK"+".wav"
-            aCmd = "ffmpeg -y -i "+mark1+" -i "+pathIn+" -i "+mark2+" -filter_complex \"[0:a][1:a][2:a]concat=n=3:v=0:a=1[a]\" -map \"[a]\" -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathMRK+" > "+pathMRK+".log 2>&1"
-            print("CMD: "+aCmd)
-            os.system(aCmd)
-            print("T=",(time.time()-startTime))
-            print("["+str(mode)+"] PATH="+pathMRK,flush=True)
-            pathIn = pathMRK
+            if(mode != 3):
+                startTime = time.time()
+                pathMRK = pathIn+".MRK"+".wav"
+                aCmd = "ffmpeg -y -i "+mark1+" -i "+pathIn+" -i "+mark2+" -filter_complex \"[0:a][1:a][2:a]concat=n=3:v=0:a=1[a]\" -map \"[a]\" -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathMRK+" > "+pathMRK+".log 2>&1"
+                print("CMD: "+aCmd)
+                os.system(aCmd)
+                print("T=",(time.time()-startTime))
+                print("["+str(mode)+"] PATH="+pathMRK,flush=True)
+                pathIn = pathMRK
             
-            if(useCompressor):
+            if(useCompressor and not isMusic):
                 startTime = time.time()
                 pathCPS = pathIn+".CPS"+".wav"
                 aCmd = "ffmpeg -y -i "+pathIn+" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathCPS+" > "+pathCPS+".log 2>&1"
@@ -317,11 +337,23 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             segments, info = model.transcribe(pathIn,**transcribe_options)
             result = {}
             result["text"] = ""
-            for segment in segments:
-                result["text"] += segment.text
+            if(mode == 3):
+                aSegCount = 0
+                for segment in segments:
+                    aSegCount += 1
+                    result["text"] += "\n"+str(aSegCount)+"\n"+formatTimeStamp(segment.start)+" --> "+formatTimeStamp(segment.end)+"\n"+segment.text.strip()+"\n"
+            else:
+                for segment in segments:
+                    result["text"] += segment.text
         else:
             transcribe_options = dict(task="transcribe", **transcribe_options)
             result = model.transcribe(pathIn,**transcribe_options)
+            if(mode == 3):
+                p = Path(pathIn)
+                writer = WriteSRT(p.parent)
+                writer(result, pathIn)
+                with open(pathIn+".srt") as f:
+                    result["text"] = f.read()
         
         print("T=",(time.time()-startTime))
         print("TRANS="+result["text"],flush=True)
@@ -335,7 +367,7 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
     
     lock.release()
     
-    if(mode == 0):
+    if(mode == 0 or mode == 3):
         return result
         #Too restrictive
         #if(result["text"] == aLast):
