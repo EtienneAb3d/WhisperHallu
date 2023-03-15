@@ -21,7 +21,7 @@ https://github.com/EtienneAb3d/WhisperTimeSync
 May be tested using NeuroSpell Dictaphone:<br/>
 https://neurospell.com/
 
-WhisperTimeSync and WhisperHallu are used to extract vocals and lyrics in karaok-AI:<br/>
+WhisperHallu and WhisperTimeSync are used to extract vocals and lyrics in karaok-AI:<br/>
 https://github.com/EtienneAb3d/karaok-AI
 
 
