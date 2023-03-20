@@ -131,5 +131,6 @@ result = transcribePrompt(path=path, lng=lng, prompt=prompt, lngInput=lngInput,i
 ```
 
 <hr>
+This tool is a demonstration of our know-how.<br/>
 If you are interested in a commercial/industrial linguistic project, contact us:<br/>
 https://cubaix.com
