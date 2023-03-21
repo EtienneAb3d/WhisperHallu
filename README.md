@@ -58,6 +58,7 @@ pip install spleeter
 
 **Standard Whisper (if used)**
 
+
 ```
 sudo apt update && sudo apt install ffmpeg
 
