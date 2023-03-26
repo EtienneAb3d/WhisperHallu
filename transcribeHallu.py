@@ -178,10 +178,24 @@ def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False,
 
 def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False):
     pathIn = path
+    pathClean = path
     pathNoCut = path
     
     initTime = time.time()
     
+    startTime = time.time()
+    try:
+        #Convert to WAV to avoid later possible decoding problem
+        pathWAV = pathIn+".WAV"+".wav"
+        aCmd = "ffmpeg -y -i \""+pathIn+"\" "+ " -nv -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathWAV+"\" > \""+pathWAV+".log\" 2>&1"
+        print("CMD: "+aCmd)
+        os.system(aCmd)
+        print("T=",(time.time()-startTime))
+        print("PATH="+pathWAV,flush=True)
+        pathIn = pathClean = pathWAV
+    except:
+         print("Warning: can't convert to WAV")
+
     if(useSpleeter):
         startTime = time.time()
         try:
@@ -218,7 +232,7 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False
     startTime = time.time()
     try:
         pathSILCUT = pathIn+".SILCUT"+".wav"
-        aCmd = "ffmpeg -y -i "+pathIn+" -af \"silenceremove=start_periods=1:stop_periods=-1:start_threshold=-50dB:stop_threshold=-50dB:start_silence=0.2:stop_silence=0.2, loudnorm\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathSILCUT+" > "+pathSILCUT+".log 2>&1"
+        aCmd = "ffmpeg -y -i \""+pathIn+"\" -af \"silenceremove=start_periods=1:stop_periods=-1:start_threshold=-50dB:stop_threshold=-50dB:start_silence=0.2:stop_silence=0.2, loudnorm\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathSILCUT+"\" > \""+pathSILCUT+".log\" 2>&1"
         print("CMD: "+aCmd)
         os.system(aCmd)
         print("T=",(time.time()-startTime))
@@ -257,7 +271,7 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False
     if(addSRT):
         #Better timestamps using original music clip
         if(isMusic):
-            resultSRT = transcribeMARK(path, opts, mode=3,lngInput=lngInput,isMusic=isMusic)
+            resultSRT = transcribeMARK(pathClean, opts, mode=3,lngInput=lngInput,isMusic=isMusic)
         else:
             resultSRT = transcribeMARK(pathNoCut, opts, mode=3,lngInput=lngInput,isMusic=isMusic)
         
@@ -307,7 +321,7 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             if(mode != 3):
                 startTime = time.time()
                 pathMRK = pathIn+".MRK"+".wav"
-                aCmd = "ffmpeg -y -i "+mark1+" -i "+pathIn+" -i "+mark2+" -filter_complex \"[0:a][1:a][2:a]concat=n=3:v=0:a=1[a]\" -map \"[a]\" -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathMRK+" > "+pathMRK+".log 2>&1"
+                aCmd = "ffmpeg -y -i "+mark1+" -i \""+pathIn+"\" -i "+mark2+" -filter_complex \"[0:a][1:a][2:a]concat=n=3:v=0:a=1[a]\" -map \"[a]\" -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathMRK+"\" > \""+pathMRK+".log\" 2>&1"
                 print("CMD: "+aCmd)
                 os.system(aCmd)
                 print("T=",(time.time()-startTime))
@@ -317,7 +331,7 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             if(useCompressor and not isMusic):
                 startTime = time.time()
                 pathCPS = pathIn+".CPS"+".wav"
-                aCmd = "ffmpeg -y -i "+pathIn+" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" "+pathCPS+" > "+pathCPS+".log 2>&1"
+                aCmd = "ffmpeg -y -i \""+pathIn+"\" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathCPS+"\" > \""+pathCPS+".log\" 2>&1"
                 print("CMD: "+aCmd)
                 os.system(aCmd)
                 print("T=",(time.time()-startTime))
