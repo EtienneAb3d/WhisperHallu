@@ -187,7 +187,7 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False
     try:
         #Convert to WAV to avoid later possible decoding problem
         pathWAV = pathIn+".WAV"+".wav"
-        aCmd = "ffmpeg -y -i \""+pathIn+"\" "+ " -nv -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathWAV+"\" > \""+pathWAV+".log\" 2>&1"
+        aCmd = "ffmpeg -y -i \""+pathIn+"\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathWAV+"\" > \""+pathWAV+".log\" 2>&1"
         print("CMD: "+aCmd)
         os.system(aCmd)
         print("T=",(time.time()-startTime))
@@ -366,7 +366,12 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
                 p = Path(pathIn)
                 writer = WriteSRT(p.parent)
                 writer(result, pathIn)
-                with open(pathIn+".srt") as f:
+                audio_basename = os.path.basename(pathIn)
+                audio_basename = os.path.splitext(audio_basename)[0]
+                output_path = os.path.join(
+                    p.parent, audio_basename + ".srt"
+                    )
+                with open(output_path) as f:
                     result["text"] = f.read()
         
         print("T=",(time.time()-startTime))
