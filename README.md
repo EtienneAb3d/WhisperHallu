@@ -27,7 +27,7 @@ https://github.com/EtienneAb3d/karaok-AI
 
 # Google Colab
 
-Standard Whister:<br/>
+Standard Whisper:<br/>
 https://colab.research.google.com/drive/1-GpXaNaGFXKX9VXl60JGVVrGO41t09KA?usp=sharing
 
 Faster Whisper:<br/>
