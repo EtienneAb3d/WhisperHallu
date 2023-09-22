@@ -77,7 +77,7 @@ pip install -U openai-whisper
 pip3 install torchaudio
 ```
 
-**Faster Whisper (if used)**
+**Faster Whisper (if used in place of Whisper)**
 
 ```
 sudo apt update && sudo apt install ffmpeg
@@ -99,6 +99,29 @@ cd ..
 
 ct2-transformers-converter --model openai/whisper-medium --output_dir whisper-medium-ct2 --quantization float16
 ct2-transformers-converter --model openai/whisper-large --output_dir whisper-large-ct2 --quantization float16
+
+pip3 install torchaudio
+```
+
+**SM4T (if used in place of Whisper)**
+
+```
+sudo apt update && sudo apt install ffmpeg
+
+sudo apt install python3
+sudo apt install python3-pip
+sudo apt install virtualenv
+
+virtualenv -p python3 ../venvSM4T
+. ../venvSM4T/bin/activate
+
+git clone https://github.com/facebookresearch/seamless_communication.git
+cd seamless_communication/
+
+pip install --upgrade pip
+pip install .
+
+m4t_predict "On ne fait pas d'omelette sans casser des oeufs." t2tt eng --src_lang fra
 
 pip3 install torchaudio
 ```

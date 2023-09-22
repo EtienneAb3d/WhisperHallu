@@ -69,12 +69,22 @@ try:
 except ImportError as e:
     pass
 
+try:
+    from seamless_communication.models.inference import Translator
+    from lang2to3 import lang2to3
+    lang2to3 = lang2to3()
+    whisperFound = "SM4T"
+except ImportError as e:
+    pass
+
 beam_size=2
 model = None
 device = "cuda" #cuda / cpu
 cudaIdx = 0
 
 SAMPLING_RATE = 16000
+MAX_DURATION = 600
+TRUNC_DURATION = MAX_DURATION
 
 from threading import Lock, Thread
 lock = Lock()
@@ -98,18 +108,32 @@ def loadModel(gpu: str,modelSize=None):
                 modelSize="medium"#"tiny"#"medium" #"large"
             print("LOADING: "+modelSize+" GPU:"+gpu+" BS: "+str(beam_size))
             model = whisper.load_model(modelSize,device=torch.device("cuda:"+gpu)) #May be "cpu"
+        elif whisperFound == "SM4T":
+            print("LOADING: "+"seamlessM4T_large"+" GPU:"+gpu)
+            model = Translator("seamlessM4T_large", "vocoder_36langs", torch.device("cuda:"+gpu), torch.float16)
         print("LOADED")
     except:
-        print("Can't load Whisper model: "+modelSize)
+        print("Can't load Whisper model: "+whisperFound+"/"+modelSize)
         sys.exit(-1)
 
 def getDuration(aLog:str):
+    duration = None
+    time = None
     with open(aLog) as f:
         lines = f.readlines()
         for line in lines:
             if(re.match(r"^ *Duration: [0-9][0-9]:[0-9][0-9]:[0-9][0-9][.][0-9][0-9], .*$", line, re.IGNORECASE)):
-                duration = re.sub(r"(^ *Duration: *|[,.].*$)", "", line, 2, re.IGNORECASE)
+                duration = re.sub(r"(.*Duration: *|[,. ].*)", "", line, re.IGNORECASE)
                 return sum(x * int(t) for x, t in zip([3600, 60, 1], duration.split(":")))
+            for aSub in line.split("[\r\n]"):
+                if(re.match(r"^.*time=[0-9][0-9]:[0-9][0-9]:[0-9][0-9][.][0-9][0-9] .*$", aSub, re.IGNORECASE)):
+                    #print("SUB="+aSub)
+                    time = re.sub(r"(.*time=|[,. ].*)", "", aSub, re.IGNORECASE)
+    #Return last found time value
+    if(time != "00:00:00"):
+        print("TIME="+str(time))
+        return sum(x * int(t) for x, t in zip([3600, 60, 1], time.split(":")))
+    return None
 
 def formatTimeStamp(aT=0):
     aH = int(aT/3600)
@@ -155,7 +179,7 @@ def getPrompt(lng:str):
     return ""
 
 
-def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False,addSRT=False):
+def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False,addSRT=False,truncDuration=TRUNC_DURATION,maxDuration=MAX_DURATION):
     """Whisper transcribe."""
 
     if(lngInput == None):
@@ -174,9 +198,9 @@ def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False,
     print("LNG="+lng,flush=True)
     print("PROMPT="+prompt,flush=True)
     opts = dict(language=lng,initial_prompt=prompt)
-    return transcribeOpts(path, opts,lngInput,isMusic=isMusic,addSRT=addSRT)
+    return transcribeOpts(path, opts,lngInput,isMusic=isMusic,addSRT=addSRT,truncDuration=truncDuration,maxDuration=maxDuration)
 
-def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False):
+def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False,truncDuration=TRUNC_DURATION,maxDuration=MAX_DURATION):
     pathIn = path
     pathClean = path
     pathNoCut = path
@@ -184,17 +208,34 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False
     initTime = time.time()
     
     startTime = time.time()
+    duration = -1
     try:
-        #Convert to WAV to avoid later possible decoding problem
+    #Convert to WAV to avoid later possible decoding problem
         pathWAV = pathIn+".WAV"+".wav"
-        aCmd = "ffmpeg -y -i \""+pathIn+"\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathWAV+"\" > \""+pathWAV+".log\" 2>&1"
+        aCmd = "ffmpeg -y -i \""+pathIn+"\""+" -t "+str(truncDuration) + " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathWAV+"\" > \""+pathWAV+".log\" 2>&1"
         print("CMD: "+aCmd)
         os.system(aCmd)
         print("T=",(time.time()-startTime))
+        duration = getDuration(pathWAV+".log")
+        print("DURATION="+str(duration)+" trunc "+str(truncDuration))
         print("PATH="+pathWAV,flush=True)
         pathIn = pathClean = pathWAV
     except:
          print("Warning: can't convert to WAV")
+
+    startTime = time.time()
+    try:
+        #Check for duration
+        aCmd = "ffmpeg -y -i \""+pathIn+"\" "+ " -f null - > \""+pathIn+".dur\" 2>&1"
+        print("CMD: "+aCmd)
+        os.system(aCmd)
+        print("T=",(time.time()-startTime))
+        duration = getDuration(pathIn+".dur")
+        print("DURATION="+str(duration)+" max "+str(maxDuration))
+        if(duration > maxDuration):
+            return "[Too long ("+str(duration)+"s)]"
+    except:
+         print("Warning: can't analyze duration")
 
     if(useSpleeter):
         startTime = time.time()
@@ -228,7 +269,6 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False
         #except:
         #     print("Warning: can't split vocals")
 
-    duration = -1
     startTime = time.time()
     try:
         pathSILCUT = pathIn+".SILCUT"+".wav"
@@ -238,8 +278,6 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False
         print("T=",(time.time()-startTime))
         print("PATH="+pathSILCUT,flush=True)
         pathIn = pathSILCUT
-        duration = getDuration(pathSILCUT+".log")
-        print("DURATION="+str(duration))
     except:
          print("Warning: can't filter blanks")
     
@@ -295,11 +333,15 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
     if(lng != None and re.match(noMarkRE,lng)):
         #Need special voice marks
         mode = 0
-
+    
     if(isMusic and mode != 3):
         #Markers are not really interesting with music
         mode = 0
-        
+    
+    if(whisperFound == "SM4T"):
+        #Not marker with SM4T
+        mode = 0
+    
     if os.path.exists("markers/WOK-MRK-"+lngInput+".wav"):
         mark1="markers/WOK-MRK-"+lngInput+".wav"
     else:
@@ -359,6 +401,14 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             else:
                 for segment in segments:
                     result["text"] += segment.text
+        elif whisperFound == "SM4T":
+            src_lang = lang2to3[lngInput];
+            tgt_lang = lang2to3[lng];
+            # S2TT
+            #translated_text, _, _ = translator.predict(<path_to_input_audio>, "s2tt", <tgt_lang>)
+            translated_text, _, _ = model.predict(pathIn, "s2tt", tgt_lang)
+            result = {}
+            result["text"] = str(translated_text)
         else:
             transcribe_options = dict(task="transcribe", **transcribe_options)
             result = model.transcribe(pathIn,**transcribe_options)
