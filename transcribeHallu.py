@@ -200,7 +200,7 @@ def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False,
     opts = dict(language=lng,initial_prompt=prompt)
     return transcribeOpts(path, opts,lngInput,isMusic=isMusic,addSRT=addSRT,truncDuration=truncDuration,maxDuration=maxDuration)
 
-def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False,truncDuration=TRUNC_DURATION,maxDuration=MAX_DURATION):
+def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,onlySRT=False,addSRT=False,truncDuration=TRUNC_DURATION,maxDuration=MAX_DURATION):
     pathIn = path
     pathClean = path
     pathNoCut = path
@@ -301,14 +301,17 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False
         mode=0
     
     startTime = time.time()
-    result = transcribeMARK(pathIn, opts, mode=mode,lngInput=lngInput,isMusic=isMusic)
+    if(onlySRT):
+        result = {}
+        result["text"] = ""
+    else:
+        result = transcribeMARK(pathIn, opts, mode=mode,lngInput=lngInput,isMusic=isMusic)
+        if len(result["text"]) <= 0:
+            result["text"] = "--"
     
-    if len(result["text"]) <= 0:
-        result["text"] = "--"
-    
-    if(addSRT):
+    if(onlySRT or addSRT):
         #Better timestamps using original music clip
-        if(isMusic):
+        if(isMusic and whisperFound == "FSTR"):
             resultSRT = transcribeMARK(pathClean, opts, mode=3,lngInput=lngInput,isMusic=isMusic)
         else:
             resultSRT = transcribeMARK(pathNoCut, opts, mode=3,lngInput=lngInput,isMusic=isMusic)
@@ -322,6 +325,7 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,addSRT=False
     return result["text"]
 
 def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusic=False):
+    print("transcribeMARK(): "+path)
     pathIn = path
     
     lng = opts["language"]
@@ -330,7 +334,7 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
         lngInput = lng
         
     noMarkRE = "^(ar|he|ru|zh)$"
-    if(lng != None and re.match(noMarkRE,lng)):
+    if(lng != None and re.match(noMarkRE,lng) and mode != 3):
         #Need special voice marks
         mode = 0
     
@@ -393,14 +397,21 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             segments, info = model.transcribe(pathIn,**transcribe_options)
             result = {}
             result["text"] = ""
+            resSegs = []
             if(mode == 3):
                 aSegCount = 0
                 for segment in segments:
-                    aSegCount += 1
-                    result["text"] += "\n"+str(aSegCount)+"\n"+formatTimeStamp(segment.start)+" --> "+formatTimeStamp(segment.end)+"\n"+segment.text.strip()+"\n"
+                    if(transcribe_options["word_timestamps"]):
+                        for word in segment.words:
+                            aSegCount += 1
+                            resSegs.append("\n"+str(aSegCount)+"\n"+formatTimeStamp(word.start)+" --> "+formatTimeStamp(word.end)+"\n"+word.word.strip()+"\n")
+                    else:
+                        aSegCount += 1
+                        resSegs.append("\n"+str(aSegCount)+"\n"+formatTimeStamp(segment.start)+" --> "+formatTimeStamp(segment.end)+"\n"+segment.text.strip()+"\n")
             else:
                 for segment in segments:
-                    result["text"] += segment.text
+                    resSegs.append(segment.text)
+            result["text"] = "".join(resSegs)
         elif whisperFound == "SM4T":
             src_lang = lang2to3[lngInput];
             tgt_lang = lang2to3[lng];
@@ -415,7 +426,10 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             if(mode == 3):
                 p = Path(pathIn)
                 writer = WriteSRT(p.parent)
-                writer(result, pathIn)
+                srtOpts = { "max_line_width" : 80, "max_line_count" : 2, "highlight_words" : False}
+                if(transcribe_options["word_timestamps"]):
+                    srtOpts = { "max_line_width" : 30, "max_line_count" : 1, "highlight_words" : transcribe_options["word_timestamps"]}
+                writer(result, pathIn,srtOpts)
                 audio_basename = os.path.basename(pathIn)
                 audio_basename = os.path.splitext(audio_basename)[0]
                 output_path = os.path.join(
@@ -423,6 +437,11 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
                     )
                 with open(output_path) as f:
                     result["text"] = f.read()
+                
+                if(transcribe_options["word_timestamps"]):
+                    result["text"] = re.sub("(\n[^<\n]*<u>|</u>[^<\n]*\n)"#Remove lines without highlighted words
+                                            ,"\n",re.sub(r"\n[^<\n]*\n\n","\n\n"#Keep only highlighted words
+                                                         ,result["text"]))
         
         print("T=",(time.time()-startTime))
         print("TRANS="+result["text"],flush=True)
