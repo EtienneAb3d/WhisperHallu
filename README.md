@@ -19,7 +19,7 @@ See this discussion: https://github.com/openai/whisper/discussions/679
 - process only a subpart of the input file (needs a post-processing of timestamp values).
 - various time stretching methods tested (see in-code comments. Needs a post-processing of timestamp values. It was an interesting suggested idea, but no real gain obtained on my side).
 - vocals remix (with or without speech normalization).
-- multiple final transcription (get multiple results, knowing Whisper is not stable from one run to an other, without doing pre-processing several times) 
+- multiple final transcriptions (get multiple results, knowing Whisper is not stable from one run to an other, without doing pre-processing several times) 
 
 # Complement
 
