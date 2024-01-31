@@ -77,7 +77,12 @@ try:
 except ImportError as e:
     pass
 
+#large-v3 model seems to be bad with music, thus keep v2 as the default
+whisperVersion = "-v2" #May be "", "-V1", "-v2, "-v3"
+whisperLoaded = "??"
 beam_size=2
+patience=0
+temperature=0
 model = None
 device = "cuda" #cuda / cpu
 cudaIdx = 0
@@ -93,6 +98,7 @@ def loadModel(gpu: str,modelSize=None):
     global model
     global device
     global cudaIdx
+    global whisperLoaded
     cudaIdx = gpu
     try:
         if whisperFound == "FSTR":
@@ -100,21 +106,28 @@ def loadModel(gpu: str,modelSize=None):
                 modelPath = "whisper-large-ct2/"
             else:
                 modelPath = "whisper-medium-ct2/"
-            print("LOADING: "+modelPath+" GPU: "+gpu+" BS: "+str(beam_size))
+            print("LOADING: "+modelPath+" GPU: "+gpu+" BS: "+str(beam_size)+" PTC="+str(patience)+" TEMP="+str(temperature))
             compute_type="float16"# float16 int8_float16 int8
             model = WhisperModel(modelPath, device=device,device_index=int(gpu), compute_type=compute_type)
         elif whisperFound == "STD":
             if(modelSize == None):
                 modelSize="medium"#"tiny"#"medium" #"large"
-            print("LOADING: "+modelSize+" GPU:"+gpu+" BS: "+str(beam_size))
+            if(modelSize == "large"):
+                modelSize = "large"+whisperVersion #"large-v1" "large-v2" "large-v3"
+            print("LOADING: "+modelSize+" GPU:"+gpu+" BS: "+str(beam_size)+" PTC="+str(patience)+" TEMP="+str(temperature))
             model = whisper.load_model(modelSize,device=torch.device("cuda:"+gpu)) #May be "cpu"
         elif whisperFound == "SM4T":
             print("LOADING: "+"seamlessM4T_large"+" GPU:"+gpu)
             model = Translator("seamlessM4T_large", "vocoder_36langs", torch.device("cuda:"+gpu), torch.float16)
         print("LOADED")
-    except:
+        whisperLoaded = modelSize
+    except Exception as e:
         print("Can't load Whisper model: "+whisperFound+"/"+modelSize)
+        print(e)
         sys.exit(-1)
+
+def loadedModel():
+    return whisperFound+" "+whisperLoaded
 
 def getDuration(aLog:str):
     duration = None
@@ -200,7 +213,14 @@ def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False,
     opts = dict(language=lng,initial_prompt=prompt)
     return transcribeOpts(path, opts,lngInput,isMusic=isMusic,addSRT=addSRT,truncDuration=truncDuration,maxDuration=maxDuration)
 
-def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,onlySRT=False,addSRT=False,truncDuration=TRUNC_DURATION,maxDuration=MAX_DURATION):
+def transcribeOpts(path: str,opts: dict
+                   ,lngInput=None,isMusic=False,onlySRT=False,addSRT=False
+                   ,subBeg="0",subEnd=str(TRUNC_DURATION)
+                   ,maxDuration=MAX_DURATION
+                   ,stretch=None
+                   ,nbRun=1#Whisper is unstable, especially with music. Multiple run can provide with better results to eval afterward
+                   ,remixFactor="0.3",speechnorm=True
+                   ):
     pathIn = path
     pathClean = path
     pathNoCut = path
@@ -210,18 +230,39 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,onlySRT=Fals
     startTime = time.time()
     duration = -1
     try:
-    #Convert to WAV to avoid later possible decoding problem
+        #Convert to WAV to avoid later possible decoding problem
         pathWAV = pathIn+".WAV"+".wav"
-        aCmd = "ffmpeg -y -i \""+pathIn+"\""+" -t "+str(truncDuration) + " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathWAV+"\" > \""+pathWAV+".log\" 2>&1"
+        aCmd = "ffmpeg -y"+" -i \""+pathIn+"\""+" -ss "+subBeg+" -to "+subEnd + " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathWAV+"\" > \""+pathWAV+".log\" 2>&1"
         print("CMD: "+aCmd)
         os.system(aCmd)
-        print("T=",(time.time()-startTime))
         duration = getDuration(pathWAV+".log")
-        print("DURATION="+str(duration)+" trunc "+str(truncDuration))
+        print("T=",(time.time()-startTime))
+        print("DURATION="+str(duration)+" subBeg="+str(subBeg)+" subEnd="+str(subEnd))
         print("PATH="+pathWAV,flush=True)
         pathIn = pathClean = pathWAV
-    except:
+    except Exception as e:
          print("Warning: can't convert to WAV")
+         print(e)
+
+    try:
+        if(stretch != None):
+            pathSTRETCH = pathIn+".STRETCH"+".wav"
+            #ffmpeg STRECH
+            aCmd = "ffmpeg -y -i \""+pathIn+"\""+" -t "+str(truncDuration) + " -filter:a \"atempo="+stretch+"\"" + " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathSTRETCH+"\" > \""+pathSTRETCH+".log\" 2>&1"
+            #sox STRECH
+            #aCmd = "sox \""+pathIn+"\""+" \""+pathSTRETCH+"\" tempo "+stretch+" > \""+pathSTRETCH+".log\" 2>&1"
+            #soundstretch STRECH
+            #aCmd = "soundstretch \""+pathIn+"\""+" \""+pathSTRETCH+"\" -tempo="+str(int(100*float(stretch)) - 100)+" > \""+pathSTRETCH+".log\" 2>&1"
+            #rubberband STRECH
+            #aCmd = "rubberband \""+pathIn+"\""+" \""+pathSTRETCH+"\" --tempo "+stretch+" > \""+pathSTRETCH+".log\" 2>&1"
+            print("CMD: "+aCmd)
+            os.system(aCmd)
+            print("T=",(time.time()-startTime))
+            print("PATH="+pathWAV,flush=True)
+            pathIn = pathClean = pathWAV = pathSTRETCH
+    except Exception as e:
+         print("Warning: can't STRETCH")
+         print(e)
 
     startTime = time.time()
     try:
@@ -234,12 +275,13 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,onlySRT=Fals
         print("DURATION="+str(duration)+" max "+str(maxDuration))
         if(duration > maxDuration):
             return "[Too long ("+str(duration)+"s)]"
-    except:
+    except Exception as e:
          print("Warning: can't analyze duration")
+         print(e)
 
-    if(useSpleeter):
-        startTime = time.time()
-        try:
+    try:
+        if(useSpleeter):
+            startTime = time.time()
             spleeterDir=pathIn+".spleeter"
             if(not os.path.exists(spleeterDir)):
                 os.mkdir(spleeterDir)
@@ -248,26 +290,31 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,onlySRT=Fals
             print("T=",(time.time()-startTime))
             print("PATH="+pathSpleeter,flush=True)
             pathNoCut = pathIn = pathSpleeter
-        except:
-             print("Warning: can't split vocals")
+    except Exception as e:
+         print("Warning: can't split vocals")
+         print(e)
     
     if(useDemucs):
         startTime = time.time()
-        #try:
-        #demucsDir=pathIn+".demucs"
-        #if(not os.path.exists(demucsDir)):
-        #    os.mkdir(demucsDir)
-        pathDemucs=pathIn+".vocals.wav" #demucsDir+"/htdemucs/"+os.path.splitext(os.path.basename(pathIn))[0]+"/vocals.wav"
-        #Demucs seems complex, using CLI cmd for now
-        #aCmd = "python -m demucs --two-stems=vocals -d "+device+":"+cudaIdx+" --out "+demucsDir+" "+pathIn
-        #print("CMD: "+aCmd)
-        #os.system(aCmd)
-        demucs_audio(pathIn=pathIn,model=modelDemucs,device="cuda:"+cudaIdx,pathVocals=pathDemucs,pathOther=pathIn+".other.wav")
-        print("T=",(time.time()-startTime))
-        print("PATH="+pathDemucs,flush=True)
-        pathNoCut = pathIn = pathDemucs
-        #except:
-        #     print("Warning: can't split vocals")
+        try:
+            #demucsDir=pathIn+".demucs"
+            #if(not os.path.exists(demucsDir)):
+            #    os.mkdir(demucsDir)
+            pathDemucsVocals=pathIn+".vocals.wav" #demucsDir+"/htdemucs/"+os.path.splitext(os.path.basename(pathIn))[0]+"/vocals.wav"
+            pathDemucsDrums=pathIn+".drums.wav"
+            pathDemucsBass=pathIn+".bass.wav"
+            pathDemucsOther=pathIn+".other.wav"
+            #Demucs seems complex, using CLI cmd for now
+            #aCmd = "python -m demucs --two-stems=vocals -d "+device+":"+cudaIdx+" --out "+demucsDir+" "+pathIn
+            #print("CMD: "+aCmd)
+            #os.system(aCmd)
+            demucs_audio(pathIn=pathIn,model=modelDemucs,device="cuda:"+cudaIdx,pathVocals=pathDemucsVocals,pathOther=pathIn+".other.wav")
+            print("T=",(time.time()-startTime))
+            print("PATH="+pathDemucsVocals,flush=True)
+            pathNoCut = pathIn = pathDemucsVocals
+        except Exception as e:
+             print("Warning: can't split vocals")
+             print(e)
 
     startTime = time.time()
     try:
@@ -278,12 +325,14 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,onlySRT=Fals
         print("T=",(time.time()-startTime))
         print("PATH="+pathSILCUT,flush=True)
         pathIn = pathSILCUT
-    except:
+    except Exception as e:
          print("Warning: can't filter blanks")
+         print(e)
     
-    if(not isMusic and useSileroVAD):
-        startTime = time.time()
-        try:
+    try:
+        if(not isMusic and useSileroVAD):
+            startTime = time.time()
+            
             pathVAD = pathIn+".VAD.wav"
             wav = read_audio(pathIn, sampling_rate=SAMPLING_RATE)
             #https://github.com/snakers4/silero-vad/blob/master/utils_vad.py#L161
@@ -292,8 +341,42 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,onlySRT=Fals
             print("T=",(time.time()-startTime))
             print("PATH="+pathVAD,flush=True)
             pathIn = pathVAD
-        except:
-             print("Warning: can't filter noises")
+    except Exception as e:
+         print("Warning: can't filter noises")
+         print(e)
+
+    try:
+        if(float(remixFactor) >= 1):
+            pathREMIXN = pathClean
+        elif (float(remixFactor) <= 0 and useDemucs):
+            pathREMIXN = pathDemucsVocals;
+        elif (isMusic and useDemucs):
+            startTime = time.time()
+            
+            if(speechnorm):
+                pathNORM = pathDemucsVocals+".NORM.wav"
+                aCmd = ("ffmpeg -y -i \""+pathDemucsVocals+"\""
+                        #+ " -filter:a loudnorm"
+                        +" -af \"speechnorm=e=50:r=0.0005:l=1\""
+                        +" \""+pathNORM+"\" > \""+pathNORM+".log\" 2>&1")
+                print("CMD: "+aCmd)
+                os.system(aCmd)
+                print("T=",(time.time()-startTime))
+                print("PATH="+pathNORM,flush=True)
+            else:
+                pathNORM = pathDemucsVocals
+
+            pathREMIXN = pathNORM+".REMIX.wav"
+            aCmd = ("ffmpeg -y -i \""+pathNORM+"\" -i \""+pathDemucsDrums+"\" -i \""+pathDemucsBass+"\" -i \""+pathDemucsOther+"\""
+                    +" -filter_complex amix=inputs=4:duration=longest:dropout_transition=0:weights=\"1 "+remixFactor+" "+remixFactor+" "+remixFactor+"\""
+                    +" \""+pathREMIXN+"\" > \""+pathREMIXN+".log\" 2>&1")
+            print("CMD: "+aCmd)
+            os.system(aCmd)
+            print("T=",(time.time()-startTime))
+            print("PATH="+pathREMIXN,flush=True)
+    except Exception as e:
+         print("Warning: can't remix")
+         print(e)
 
     mode=1
     if(duration > 30):
@@ -311,20 +394,32 @@ def transcribeOpts(path: str,opts: dict,lngInput=None,isMusic=False,onlySRT=Fals
     
     if(onlySRT or addSRT):
         #Better timestamps using original music clip
-        if(isMusic and whisperFound == "FSTR"):
-            resultSRT = transcribeMARK(pathClean, opts, mode=3,lngInput=lngInput,isMusic=isMusic)
+        if(isMusic
+               #V3 is very bad with music!?
+               and not whisperVersion == "-v3"
+               ):
+            if(pathREMIXN is not None):
+                resultSRT = transcribeMARK(pathREMIXN, opts, mode=3,lngInput=lngInput,isMusic=isMusic
+                                           ,nbRun=nbRun)
+            else:
+                resultSRT = transcribeMARK(pathClean, opts, mode=3,lngInput=lngInput,isMusic=isMusic
+                                           ,nbRun=nbRun)
         else:
-            resultSRT = transcribeMARK(pathNoCut, opts, mode=3,lngInput=lngInput,isMusic=isMusic)
+            resultSRT = transcribeMARK(pathNoCut, opts, mode=3,lngInput=lngInput,isMusic=isMusic
+                                           ,nbRun=nbRun)
         
         result["text"] += resultSRT["text"]
     
     print("T=",(time.time()-initTime))
-    print("s/c=",(time.time()-initTime)/len(result["text"]))
+    if(len(result["text"]) > 0):
+        print("s/c=",(time.time()-initTime)/len(result["text"]))
     print("c/s=",len(result["text"])/(time.time()-initTime))
     
     return result["text"]
 
-def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusic=False):
+def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusic=False
+                   #Whisper is unstable, especially with music. Multiple run can provide with better results to eval afterward
+                   ,nbRun=1):
     print("transcribeMARK(): "+path)
     pathIn = path
     
@@ -374,7 +469,9 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
                 print("["+str(mode)+"] PATH="+pathMRK,flush=True)
                 pathIn = pathMRK
             
-            if(useCompressor and not isMusic):
+            if(useCompressor
+                and not isMusic
+                ):
                 startTime = time.time()
                 pathCPS = pathIn+".CPS"+".wav"
                 aCmd = "ffmpeg -y -i \""+pathIn+"\" -af \"speechnorm=e=50:r=0.0005:l=1\" "+ " -c:a pcm_s16le -ar "+str(SAMPLING_RATE)+" \""+pathCPS+"\" > \""+pathCPS+".log\" 2>&1"
@@ -383,35 +480,50 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
                 print("T=",(time.time()-startTime))
                 print("["+str(mode)+"] PATH="+pathCPS,flush=True)
                 pathIn = pathCPS
-        except:
+        except Exception as e:
              print("Warning: can't add markers")
+             print(e)
     
     startTime = time.time()
     lock.acquire()
     try:
         transcribe_options = dict(**opts)#avoid to add beam_size opt several times
         if beam_size > 1:
-            transcribe_options = dict(beam_size=beam_size,**opts)
+            transcribe_options["beam_size"] = beam_size
+        if patience > 0:
+            transcribe_options["patience"] = patience
+        if temperature > 0:
+            transcribe_options["temperature"] = temperature
         
         if whisperFound == "FSTR":
-            segments, info = model.transcribe(pathIn,**transcribe_options)
             result = {}
             result["text"] = ""
-            resSegs = []
-            if(mode == 3):
-                aSegCount = 0
-                for segment in segments:
-                    if(transcribe_options["word_timestamps"]):
-                        for word in segment.words:
+            multiRes = ""
+            for r in range(nbRun):
+                print("RUN: "+str(r))
+                segments, info = model.transcribe(pathIn,**transcribe_options)
+                resSegs = []
+                if(mode == 3):
+                    aSegCount = 0
+                    for segment in segments:
+                        if("word_timestamps" in transcribe_options):
+                            for word in segment.words:
+                                aSegCount += 1
+                                resSegs.append("\n"+str(aSegCount)+"\n"+formatTimeStamp(word.start)+" --> "+formatTimeStamp(word.end)+"\n"+word.word.strip()+"\n")
+                        else:
                             aSegCount += 1
-                            resSegs.append("\n"+str(aSegCount)+"\n"+formatTimeStamp(word.start)+" --> "+formatTimeStamp(word.end)+"\n"+word.word.strip()+"\n")
-                    else:
-                        aSegCount += 1
-                        resSegs.append("\n"+str(aSegCount)+"\n"+formatTimeStamp(segment.start)+" --> "+formatTimeStamp(segment.end)+"\n"+segment.text.strip()+"\n")
-            else:
-                for segment in segments:
-                    resSegs.append(segment.text)
-            result["text"] = "".join(resSegs)
+                            resSegs.append("\n"+str(aSegCount)+"\n"+formatTimeStamp(segment.start)+" --> "+formatTimeStamp(segment.end)+"\n"+segment.text.strip()+"\n")
+                else:
+                    for segment in segments:
+                        resSegs.append(segment.text)
+                
+                result["text"] = "".join(resSegs)
+                if(r > 0):
+                    multiRes += "=====\n"
+                multiRes += result["text"]
+                
+            if(nbRun > 1):
+                result["text"] = multiRes 
         elif whisperFound == "SM4T":
             src_lang = lang2to3[lngInput];
             tgt_lang = lang2to3[lng];
@@ -422,26 +534,34 @@ def transcribeMARK(path: str,opts: dict,mode = 1,lngInput=None,aLast=None,isMusi
             result["text"] = str(translated_text)
         else:
             transcribe_options = dict(task="transcribe", **transcribe_options)
-            result = model.transcribe(pathIn,**transcribe_options)
-            if(mode == 3):
-                p = Path(pathIn)
-                writer = WriteSRT(p.parent)
-                srtOpts = { "max_line_width" : 80, "max_line_count" : 2, "highlight_words" : False}
-                if(transcribe_options["word_timestamps"]):
-                    srtOpts = { "max_line_width" : 30, "max_line_count" : 1, "highlight_words" : transcribe_options["word_timestamps"]}
-                writer(result, pathIn,srtOpts)
-                audio_basename = os.path.basename(pathIn)
-                audio_basename = os.path.splitext(audio_basename)[0]
-                output_path = os.path.join(
-                    p.parent, audio_basename + ".srt"
-                    )
-                with open(output_path) as f:
-                    result["text"] = f.read()
-                
-                if(transcribe_options["word_timestamps"]):
-                    result["text"] = re.sub("(\n[^<\n]*<u>|</u>[^<\n]*\n)"#Remove lines without highlighted words
-                                            ,"\n",re.sub(r"\n[^<\n]*\n\n","\n\n"#Keep only highlighted words
-                                                         ,result["text"]))
+            multiRes = ""
+            for r in range(nbRun):
+                print("RUN: "+str(r))
+                result = model.transcribe(pathIn,**transcribe_options)
+                if(mode == 3):
+                    p = Path(pathIn)
+                    writer = WriteSRT(p.parent)
+                    srtOpts = { "max_line_width" : 80, "max_line_count" : 2, "highlight_words" : False}
+                    if("word_timestamps" in transcribe_options and transcribe_options["word_timestamps"]):
+                        srtOpts = { "max_line_width" : 30, "max_line_count" : 1, "highlight_words" : transcribe_options["word_timestamps"]}
+                    writer(result, pathIn,srtOpts)
+                    audio_basename = os.path.basename(pathIn)
+                    audio_basename = os.path.splitext(audio_basename)[0]
+                    output_path = os.path.join(
+                        p.parent, audio_basename + ".srt"
+                        )
+                    with open(output_path) as f:
+                        result["text"] = f.read()
+                    
+                    if("word_timestamps" in transcribe_options and transcribe_options["word_timestamps"]):
+                        result["text"] = re.sub("(\n[^<\n]*<u>|</u>[^<\n]*\n)"#Remove lines without highlighted words
+                                                ,"\n",re.sub(r"\n[^<\n]*\n\n","\n\n"#Keep only highlighted words
+                                                             ,result["text"]))
+                if(r > 0):
+                    multiRes += "=====\n"
+                multiRes += result["text"]
+            if(nbRun > 1):
+                result["text"] = multiRes
         
         print("T=",(time.time()-startTime))
         print("TRANS="+result["text"],flush=True)

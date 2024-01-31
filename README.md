@@ -3,8 +3,8 @@ Experimental code: sound file preprocessing to optimize Whisper transcriptions w
 
 See this discussion: https://github.com/openai/whisper/discussions/679
 
-# Algo
-- remove noise by voice extraction using  [Facebook Demucs](https://github.com/facebookresearch/demucs) or [Deezer Spleeter](https://github.com/deezer/spleeter)
+# Main algo
+- remove noise by voice extraction using  [Facebook Demucs](https://github.com/facebookresearch/demucs) or [Deezer Spleeter](https://github.com/deezer/spleeter).
 - remove silences, and normalize loudness with ffmpeg.
 - remove noise parts using [Silero VAD](https://github.com/snakers4/silero-vad).
 - add voice markers.
@@ -12,6 +12,14 @@ See this discussion: https://github.com/openai/whisper/discussions/679
 - try to transcribe. If markers are present in output, transcription is OK.
 - if not, try to invert markers. If markers are present in output, transcription is OK.
 - if not, try without markers.
+
+# Processing options and parameters
+- use Whisper V1, V2 or V3 (V2 by default, because V3 seems bad with music).
+- beam_size (2 by default), patience, temperature.
+- process only a subpart of the input file (needs a post-processing of timestamp values).
+- various time stretching methods tested (see in-code comments. Needs a post-processing of timestamp values. It was an interesting suggested idea, but no real gain obtained on my side).
+- vocals remix
+- multiple final transcription (get multiple results, knowing Whisper is not stable from one run to an other, without doing pre-processing several times) 
 
 # Complement
 
