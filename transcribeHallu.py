@@ -211,7 +211,7 @@ def transcribePrompt(path: str,lng: str,prompt=None,lngInput=None,isMusic=False,
     print("LNG="+lng,flush=True)
     print("PROMPT="+prompt,flush=True)
     opts = dict(language=lng,initial_prompt=prompt)
-    return transcribeOpts(path, opts,lngInput,isMusic=isMusic,addSRT=addSRT,truncDuration=truncDuration,maxDuration=maxDuration)
+    return transcribeOpts(path, opts,lngInput,isMusic=isMusic,addSRT=addSRT,subEnd=truncDuration,maxDuration=maxDuration)
 
 def transcribeOpts(path: str,opts: dict
                    ,lngInput=None,isMusic=False,onlySRT=False,addSRT=False
