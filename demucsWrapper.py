@@ -5,6 +5,7 @@ from demucs.pretrained import get_model_from_args
 from demucs.apply import apply_model
 from demucs.separate import load_track
 from torch._C import device
+import re
 
 def load_demucs_model():
     return get_model_from_args(type('args', (object,), dict(name='htdemucs', repo=None))).cpu().eval()
@@ -38,8 +39,9 @@ def demucs_audio(pathIn: str,
     
     for name in model.sources:
         print("Source: "+name)
-        source_idx=model.sources.index(name)
-        source=result[0, source_idx].mean(0)
-        torchaudio.save(pathIn+"."+name+".wav", source[None], model.samplerate)
+        if name == "vocals":
+            source_idx=model.sources.index(name)
+            source=result[0, source_idx].mean(0)
+            torchaudio.save(re.sub(r'[.](mp3|wav)$',"."+name+".wav",pathIn), source[None], model.samplerate)
         
 
