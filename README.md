@@ -46,7 +46,7 @@ https://colab.research.google.com/drive/1RkvOtUTbUD5NVsRI4aKEqJO8BRo8BFIY?usp=sh
 # Install
 
 **Check ffmpeg version >=4.4**
-```
+```sh
 ffmpeg -version
 
 Output should be:
@@ -63,19 +63,19 @@ sudo apt-get -qq install -y ffmpeg
 
 **Demucs (if used)**
 
-```
+```sh
 pip install -U demucs
 ```
 
 **Spleeter (if used)**
 
-```
+```sh
 pip install spleeter
 ```
 
 **Standard Whisper (if used)**
 
-```
+```sh
 sudo apt update && sudo apt install ffmpeg
 
 sudo apt install python3
@@ -92,7 +92,7 @@ pip3 install torchaudio
 
 **Faster Whisper (if used in place of Whisper)**
 
-```
+```sh
 sudo apt update && sudo apt install ffmpeg
 
 sudo apt install python3
@@ -118,7 +118,7 @@ pip3 install torchaudio
 
 **SM4T (if used in place of Whisper)**
 
-```
+```sh
 sudo apt update && sudo apt install ffmpeg
 
 sudo apt install python3
@@ -141,7 +141,7 @@ pip3 install torchaudio
 
 # Code
 
-```
+```python
 from transcribeHallu import loadModel
 from transcribeHallu import transcribePrompt
 
