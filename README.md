@@ -45,17 +45,20 @@ https://colab.research.google.com/drive/1RkvOtUTbUD5NVsRI4aKEqJO8BRo8BFIY?usp=sh
 
 # Install
 
-**Upgrade ffmpeg to version 4.4 on Google Colab**
+**Check ffmpeg version >=4.4**
 ```
-! add-apt-repository -y ppa:savoury1/ffmpeg4
-! apt-get -qq install -y ffmpeg
+ffmpeg -version
 
-!ffmpeg -version
-
-Output:
-==========
+Output should be:
+=================
 ffmpeg version 4.4.3-0ubuntu1~20.04.sav2 Copyright (c) 2000-2022 the FFmpeg developers
 [...]
+
+Install latest:
+===============
+sudo add-apt-repository -y ppa:savoury1/ffmpeg4
+sudo apt-get -qq install -y ffmpeg
+
 ```
 
 **Demucs (if used)**
